@@ -7,9 +7,13 @@ import (
 	"unicode"
 )
 
+// maxPuzzleSize is the maximum size of a puzzle file that will be read.
+// 1MB is more than enough for any reasonable Sudoku puzzle.
+const maxPuzzleSize = 1024 * 1024
+
 func FromFile(f *os.File) (*Puzzle, error) {
 	var buf strings.Builder
-	if data, err := io.ReadAll(f); err != nil {
+	if data, err := io.ReadAll(io.LimitReader(f, maxPuzzleSize)); err != nil {
 		return nil, err
 	} else {
 		_, _ = buf.Write(data)
