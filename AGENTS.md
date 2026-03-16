@@ -14,6 +14,7 @@ files before generating code or architectural suggestions.
 - **Refactoring:** Before refactoring, explain *why* the change is needed.
 - **Diffs:** Provide concise diffs or partial code blocks rather than re-printing
   whole files.
+- Always update ROADMAP.md as you complete each task.
 
 ---
 
