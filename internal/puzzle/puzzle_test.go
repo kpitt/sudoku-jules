@@ -17,19 +17,17 @@ func TestNewPuzzle(t *testing.T) {
 	}
 
 	// Check initial cell state
-	// TODO: r,c -> index?
-	for r := range 9 {
-		for c := range 9 {
-			cell := p.Get(r, c)
-			if cell.Row != r || cell.Col != c {
-				t.Errorf("cell at (%d, %d) has incorrect coordinates (%d, %d)", r, c, cell.Row, cell.Col)
-			}
-			if cell.IsSolved() {
-				t.Errorf("cell at (%d,%d) should be empty", r, c)
-			}
-			if cell.Candidates != bitset.BitSet16(allDigitBits) { // All candidates should be present
-				t.Errorf("cell at (%d, %d) should have all candidates", r, c)
-			}
+	for i := range 81 {
+		r, c := i/9, i%9
+		cell := p.Cell(i)
+		if cell.Row != r || cell.Col != c {
+			t.Errorf("cell at index %d (%d, %d) has incorrect coordinates (%d, %d)", i, r, c, cell.Row, cell.Col)
+		}
+		if cell.IsSolved() {
+			t.Errorf("cell at index %d (%d,%d) should be empty", i, r, c)
+		}
+		if cell.Candidates != bitset.BitSet16(allDigitBits) { // All candidates should be present
+			t.Errorf("cell at index %d (%d, %d) should have all candidates", i, r, c)
 		}
 	}
 }
