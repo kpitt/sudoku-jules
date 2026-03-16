@@ -1,7 +1,7 @@
 # AI Agent Guidelines
 
 **Important:** Strictly follow the general standards in [CODING_STANDARDS.md](./CODING_STANDARDS.md) and
-respect the project structure defined in [ARCHITECTURE.md](./ARCHITECTURE.md). Always check these
+respect the project structure defined in [ARCHITECTURE.md](./docs/ARCHITECTURE.md). Always check these
 files before generating code or architectural suggestions.
 
 ## Agent Persona
