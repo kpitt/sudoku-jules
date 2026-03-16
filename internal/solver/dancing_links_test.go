@@ -25,13 +25,11 @@ func TestDancingLinksBasic(t *testing.T) {
 
 	// Fill the puzzle grid with the test puzzle values
 	givenCount := 0
-	for r := range 9 {
-		for c := range 9 {
-			// TODO: r,c or index?
-			if testPuzzle[r][c] != 0 {
-				b.Get(r, c).GivenValue(testPuzzle[r][c])
-				givenCount++
-			}
+	for i := range 81 {
+		r, c := i/9, i%9
+		if testPuzzle[r][c] != 0 {
+			b.Cell(i).GivenValue(testPuzzle[r][c])
+			givenCount++
 		}
 	}
 
