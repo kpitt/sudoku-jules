@@ -79,27 +79,25 @@ func (dl *DancingLinks) buildMatrix() {
 	// Also create map for recording the candidate represented by each row.
 	dl.candidates = make(map[int]Candidate)
 
-	for r := range 9 {
-		for c := range 9 {
-			// TODO: r,c or index?
-			cell := dl.Puzzle.Get(r, c)
+	for i := range 81 {
+		cell := dl.Puzzle.Cell(i)
+		r, c := i/9, i%9
 
-			if cell.IsSolved() {
-				// Cell is already solved, so get the constraint columns for the
-				// solved value and remove them from the matrix.
-				val := cell.Value()
-				constraints := dl.getConstraintColumns(r, c, val, columns)
-				for _, col := range constraints {
-					col.Right.Left = col.Left
-					col.Left.Right = col.Right
-				}
-			} else {
-				// Create rows for all possible values this cell can have.
-				for val := 1; val <= 9; val++ {
-					if cell.HasCandidate(val) {
-						row := dl.createRowNodes(r, c, val, columns)
-						dl.Rows = append(dl.Rows, row)
-					}
+		if cell.IsSolved() {
+			// Cell is already solved, so get the constraint columns for the
+			// solved value and remove them from the matrix.
+			val := cell.Value()
+			constraints := dl.getConstraintColumns(r, c, val, columns)
+			for _, col := range constraints {
+				col.Right.Left = col.Left
+				col.Left.Right = col.Right
+			}
+		} else {
+			// Create rows for all possible values this cell can have.
+			for val := 1; val <= 9; val++ {
+				if cell.HasCandidate(val) {
+					row := dl.createRowNodes(r, c, val, columns)
+					dl.Rows = append(dl.Rows, row)
 				}
 			}
 		}
