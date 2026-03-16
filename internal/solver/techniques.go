@@ -88,7 +88,7 @@ func (s *Solver) initTechniques() {
 		{"W-Wing", nil}, // TODO: Implement "W-Wing" technique
 		{"XY-Wing", s.findXYWings},
 		{"XYZ-Wing", s.findXYZWings},
-		{"Avoidable Rectangle", s.findAvoidableRectangles},
+		{"Avoidable Rectangle", s.findAvoidableRectangles}, // TODO: Implement "Avoidable Rectangle" technique
 		{"Unique Rectangle Type 1", s.findUniqueRectangleType1},
 		{"Unique Rectangle Type 2", nil}, // TODO: Implement "Unique Rectangle Type 2" technique
 		{"Unique Rectangle Type 3", nil}, // TODO: Implement "Unique Rectangle Type 3" technique
