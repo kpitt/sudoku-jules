@@ -48,6 +48,8 @@ const (
 	kindMultiColoring
 	kindXChain
 	kindXYChain
+	kindAIC
+	kindALS
 	kindBruteForce
 )
 
@@ -61,6 +63,7 @@ type Technique struct {
 // initTechniques initializes a list of the known solving techniques and
 // assigns it to the solver.
 // The order must match the order of the techniqueKind constants.
+// TODO: Implement Bitwise Techniques: Rewrite all solver techniques to use bitwise logic (POPCNT, AND, OR, XOR).
 func (s *Solver) initTechniques() {
 	// The order of this list must match the order of the techniqueKind constants.
 	s.techniques = []Technique{
@@ -77,28 +80,30 @@ func (s *Solver) initTechniques() {
 		{"X-Wing", s.findXWings},
 		{"Swordfish", s.findSwordfish},
 		{"Jellyfish", s.findJellyfish},
-		{"Remote Pair", nil},
-		{"BUG+1", nil},
+		{"Remote Pair", nil}, // TODO: Implement "Remote Pair" technique
+		{"BUG+1", nil}, // TODO: Implement "BUG+1" technique
 		{"Skyscraper", s.findSkyscraper},
 		{"2-String Kite", s.findTwoStringKite},
-		{"Empty Rectangle", nil},
-		{"W-Wing", nil},
+		{"Empty Rectangle", nil}, // TODO: Implement "Empty Rectangle" technique
+		{"W-Wing", nil}, // TODO: Implement "W-Wing" technique
 		{"XY-Wing", s.findXYWings},
 		{"XYZ-Wing", s.findXYZWings},
-		{"Avoidable Rectangle", s.findAvoidableRectangles},
+		{"Avoidable Rectangle", s.findAvoidableRectangles}, // TODO: Implement "Avoidable Rectangle" technique
 		{"Unique Rectangle Type 1", s.findUniqueRectangleType1},
-		{"Unique Rectangle Type 2", nil},
-		{"Unique Rectangle Type 3", nil},
-		{"Unique Rectangle Type 4", nil},
-		{"Hidden Rectangle", nil},
-		{"Finned X-Wing", nil},
-		{"Finned Swordfish", nil},
-		{"Finned Jellyfish", nil},
-		{"Sue de Coq", nil},
-		{"Simple Coloring", nil},
-		{"Multi-Coloring", nil},
-		{"X-Chain", nil},
-		{"XY-Chain", nil},
+		{"Unique Rectangle Type 2", nil}, // TODO: Implement "Unique Rectangle Type 2" technique
+		{"Unique Rectangle Type 3", nil}, // TODO: Implement "Unique Rectangle Type 3" technique
+		{"Unique Rectangle Type 4", nil}, // TODO: Implement "Unique Rectangle Type 4" technique
+		{"Hidden Rectangle", nil}, // TODO: Implement "Hidden Rectangle" technique
+		{"Finned X-Wing", nil}, // TODO: Implement "Finned X-Wing" technique
+		{"Finned Swordfish", nil}, // TODO: Implement "Finned Swordfish" technique
+		{"Finned Jellyfish", nil}, // TODO: Implement "Finned Jellyfish" technique
+		{"Sue de Coq", nil}, // TODO: Implement "Sue de Coq" technique
+		{"Simple Coloring", nil}, // TODO: Implement "Simple Coloring" technique
+		{"Multi-Coloring", nil}, // TODO: Implement "Multi-Coloring" technique
+		{"X-Chain", nil}, // TODO: Implement "X-Chain" technique
+		{"XY-Chain", nil}, // TODO: Implement "XY-Chain" technique
+		{"AIC", nil}, // TODO: Implement "AIC" technique
+		{"ALS", nil}, // TODO: Implement "ALS" technique
 		{"Brute Force", nil}, // custom check as last resort
 	}
 }

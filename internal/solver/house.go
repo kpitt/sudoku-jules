@@ -9,7 +9,9 @@ import (
 // digits from 1 to 9.  The House maps each unsolved digit to the possible
 // locations for that value, which makes it easier to check for certain
 // patterns.
+// TODO: Implement Pre-computed Houses: Implement HouseLookup [27][9]uint8 to replace House structs and maps.
 type House struct {
+	// TODO: Implement Remove Maps: Eliminate House.Unsolved map in favor of direct array iteration.
 	Unsolved ValLocMap
 	Cells    [9]*puzzle.Cell
 	Kind     houseKind

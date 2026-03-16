@@ -9,6 +9,7 @@ import (
 )
 
 type (
+	// TODO: Implement Stack Allocation: Ensure the main Solver and Board structs fit entirely on the stack.
 	Solver struct {
 		puzzle *puzzle.Puzzle
 		*Options
@@ -109,6 +110,7 @@ func (s *Solver) processInitialValues() {
 // Solve attempts to solve a Sudoku puzzle by first applying known deductive
 // solving techniques. If those don't solve the puzzle completely, it falls back
 // to using the Dancing Links algorithm as a last resort.
+// TODO: Implement Branchless Iteration: Update loops to use fixed-size array iteration.
 func (s *Solver) Solve() {
 	defer s.solveTimer(time.Now())
 
