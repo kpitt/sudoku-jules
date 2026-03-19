@@ -1,0 +1,83 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - goconst
+    # - gocyclo
+    # - gocognit
+    - gocritic
+    - misspell
+    - nakedret
+    - prealloc
+    - unparam
+    - errorlint
+    - unconvert
+    - copyloopvar
+    - whitespace
+    - nolintlint
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # Only needed for extreme memory optimization
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+    gocyclo:
+      min-complexity: 15
+    gocognit:
+      min-complexity: 20
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - opinionated
+      disabled-checks:
+        - appendCombine # Can sometimes hurt readability
+        - captLocal # Often too noisy
+    nakedret:
+      max-func-lines: 30
+    nolintlint:
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintln(os.Stderr)
+        - (*github.com/fatih/color.Color).Print
+        - (*github.com/fatih/color.Color).Printf
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

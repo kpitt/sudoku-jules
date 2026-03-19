@@ -1,3 +1,11 @@
 {
-  "contextFileName": "AGENTS.md"
+  "contextFileName": "AGENTS.md",
+  "model": {
+    "maxSessionTurns": -1
+  },
+
+  "experimental": {
+    "enableAgents": true,
+    "modelSteering": true
+  }
 }
