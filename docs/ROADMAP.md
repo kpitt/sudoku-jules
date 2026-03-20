@@ -13,15 +13,15 @@ classified by human difficulty.
 
 *Complex patterns and chaining logic.*
 
-- [-] **Simple Coloring (Color Chain)**: Single-digit conjugate chains (A/B logic).
+- [x] **Simple Coloring (Color Chain)**: Single-digit conjugate chains (A/B logic).
 - [-] **Multi-Coloring**: Multi-digit conjugate chains.
 
 ## 4. Expert Techniques
 
 *Generalized set theory and long chains.*
 
-- [ ] **AIC (Alternating Inference Chains)**: Generalized chaining (Strong/Weak links).
-- [-] **Sue de Coq**: Set intersection logic.
+- [x] **AIC (Alternating Inference Chains)**: Generalized chaining (Strong/Weak links).
+- [x] **Sue de Coq**: Set intersection logic.
 
 ## 6. Performance Optimizations
 

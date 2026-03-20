@@ -1,3 +1,4 @@
+// Package solver implements various Sudoku solving techniques.
 package solver
 
 import (
@@ -26,7 +27,11 @@ func RunRegressionFile(filename string) (*RegressionStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "error closing file: %v\n", err)
+		}
+	}()
 
 	stats := &RegressionStats{
 		Start: time.Now(),
@@ -42,7 +47,7 @@ func RunRegressionFile(filename string) (*RegressionStats, error) {
 		}
 
 		stats.Total++
-		if pass, err := runTestCase(line, lineNum); err != nil {
+		if pass, err := runTestCase(line); err != nil {
 			fmt.Printf("Line %d: ERROR: %v\n", lineNum, err)
 			stats.Failed++
 		} else if pass {
@@ -57,10 +62,10 @@ func RunRegressionFile(filename string) (*RegressionStats, error) {
 	return stats, scanner.Err()
 }
 
-func runTestCase(line string, lineNum int) (bool, error) {
+func runTestCase(line string) (bool, error) {
 	p, err := puzzle.FromHodokuString(line)
 	if err != nil {
-		return false, fmt.Errorf("parse error: %v", err)
+		return false, fmt.Errorf("parse error: %w", err)
 	}
 
 	parts := strings.Split(line, ":")
@@ -104,6 +109,14 @@ func runTestCase(line string, lineNum int) (bool, error) {
 	} else {
 		// Run the specific technique
 		tech.Check()
+	}
+
+	if len(s.solution) == 0 {
+		fmt.Printf("  No steps found by %s\n", techName(targetKind))
+	} else {
+		for _, step := range s.solution {
+			fmt.Printf("  Step found: %s\n", s.FormatStep(step))
+		}
 	}
 
 	// Now verify the results
@@ -156,7 +169,7 @@ func parseHodokuDigits(s string) []int {
 	parts := strings.Fields(s)
 	res := make([]int, 0, len(parts))
 	for _, p := range parts {
-		if len(p) == 0 {
+		if p == "" {
 			continue
 		}
 		// Some might be digits, some might be cell refs?
@@ -280,6 +293,7 @@ var hodokuIDToKind = map[string]techniqueKind{
 	"0400": kindSkyscraper,
 	"0401": kindTwoStringKite,
 	"0402": kindEmptyRectangle,
+	"0403": kindSimpleColoring,
 	"0701": kindXChain,
 	"0702": kindAIC,
 	"0708": kindAIC,

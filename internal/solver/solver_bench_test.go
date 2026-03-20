@@ -97,11 +97,11 @@ func BenchmarkSolveByDifficulty(b *testing.B) {
 			difficultyGroups[tc.difficulty] = make([]*puzzle.Puzzle, 0)
 		}
 
-		puzzle, err := puzzle.FromString(tc.puzzle)
+		p, err := puzzle.FromString(tc.puzzle)
 		if err != nil {
 			b.Fatalf("Failed to load puzzle %s: %v", tc.name, err)
 		}
-		difficultyGroups[tc.difficulty] = append(difficultyGroups[tc.difficulty], puzzle)
+		difficultyGroups[tc.difficulty] = append(difficultyGroups[tc.difficulty], p)
 	}
 
 	opts := &Options{}

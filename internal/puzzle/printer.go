@@ -24,6 +24,8 @@ var (
 	unsolvedLegend = unsolvedColor.Sprint("Gray")
 )
 
+// Print outputs the current state of the puzzle to the console in a
+// human-readable grid format.
 func (p *Puzzle) Print() {
 	fmt.Println("┌───────┬───────┬───────┐")
 	for r := range 9 {
@@ -53,6 +55,8 @@ func (p *Puzzle) Print() {
 		givenLegend, solvedLegend, unsolvedLegend)
 }
 
+// PrintUnsolvedCounts outputs the number of unsolved cells and the remaining
+// counts for each digit.
 func (p *Puzzle) PrintUnsolvedCounts() {
 	color.HiWhite("Unsolved Digits (%d cells):", p.unsolvedCounts[0])
 	for i := range 9 {
@@ -66,6 +70,8 @@ func (p *Puzzle) PrintUnsolvedCounts() {
 	fmt.Println()
 }
 
+// PrintCandidateGrid outputs a detailed 9x9 grid showing all remaining
+// candidates for each unsolved cell.
 func (p *Puzzle) PrintCandidateGrid() {
 	fmt.Println(borderTop)
 	for r := range 9 {
@@ -83,6 +89,8 @@ func (p *Puzzle) PrintCandidateGrid() {
 		givenLegend, solvedLegend, unsolvedLegend)
 }
 
+// FormatCell returns a human-readable string representation of a cell's
+// position (e.g., "r1c1" for the top-left cell).
 func FormatCell(index int) string {
 	r, c := index/9, index%9
 	return fmt.Sprintf("r%dc%d", r+1, c+1)

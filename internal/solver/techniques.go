@@ -100,8 +100,8 @@ func (s *Solver) initTechniques() {
 		{"Finned X-Wing", s.findFinnedXWings},
 		{"Finned Swordfish", s.findFinnedSwordfish},
 		{"Finned Jellyfish", s.findFinnedJellyfish},
-		{"Sue de Coq", nil},
-		{"Simple Coloring", nil},
+		{"Sue de Coq", s.findSueDeCoq},
+		{"Simple Coloring", s.findSimpleColoring},
 		{"Multi-Coloring", nil},
 		{"X-Chain", s.findXChains},
 		{"XY-Chain", s.findXYChains},
@@ -111,181 +111,6 @@ func (s *Solver) initTechniques() {
 		{"ALS-XY-Wing", s.findALSXYWing},
 		{"Brute Force", nil}, // custom check as last resort
 	}
-}
-
-type xChainState struct {
-	node int
-	next int // 0: must be strong, 1: can be weak
-}
-
-func (s *Solver) findXChains() bool {
-	found := false
-	for val := 1; val <= 9; val++ {
-		// 1. Build strong links for val.
-		strongLinks := make([][]int, 81)
-		for _, h := range s.houses {
-			if h.NumLocations(val) == 2 {
-				locs := h.Locations(val).Values()
-				idx1 := h.Cells[locs[0]].Index()
-				idx2 := h.Cells[locs[1]].Index()
-				strongLinks[idx1] = append(strongLinks[idx1], idx2)
-				strongLinks[idx2] = append(strongLinks[idx2], idx1)
-			}
-		}
-
-		// 2. For each cell that has 'val', start a BFS.
-		for startNode := 0; startNode < 81; startNode++ {
-			if !s.puzzle.Cell(startNode).HasCandidate(val) {
-				continue
-			}
-
-			// BFS to find alternating chains starting with a Strong link.
-			queue := []xChainState{{startNode, 0}}
-			visited := make(map[xChainState]xChainState)
-			visited[xChainState{startNode, 0}] = xChainState{node: -1}
-
-			for len(queue) > 0 {
-				curr := queue[0]
-				queue = queue[1:]
-
-				if curr.next == 0 {
-					// Must use a Strong link
-					for _, nextNode := range strongLinks[curr.node] {
-						nextState := xChainState{nextNode, 1}
-						if _, ok := visited[nextState]; !ok {
-							visited[nextState] = curr
-							queue = append(queue, nextState)
-
-							// We reached nextNode via a Strong link.
-							if nextNode != startNode {
-								step := NewStep(kindXChain).WithValues(val)
-								if s.eliminatePeerTargets(val, s.puzzle.Cell(startNode), s.puzzle.Cell(nextNode), step) {
-									chain := s.reconstructXChainPath(visited, nextState)
-									s.applyStep(step.WithIndices(chain...))
-									found = true
-								}
-							}
-						}
-					}
-				} else {
-					// Can use a Weak link (any cell that sees curr.node and has val)
-					for _, nextNode := range s.cellPeers[curr.node] {
-						if s.puzzle.Cell(nextNode).HasCandidate(val) {
-							nextState := xChainState{nextNode, 0}
-							if _, ok := visited[nextState]; !ok {
-								visited[nextState] = curr
-								queue = append(queue, nextState)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return found
-}
-
-type xyChainState struct {
-	node int
-	val  int
-}
-
-func (s *Solver) findXYChains() bool {
-	// Find all bivalue cells.
-	bivalueIndices := make([]int, 0, 81)
-	for i := 0; i < 81; i++ {
-		if s.puzzle.Cell(i).NumCandidates() == 2 {
-			bivalueIndices = append(bivalueIndices, i)
-		}
-	}
-
-	if len(bivalueIndices) < 3 {
-		return false
-	}
-
-	found := false
-	for _, startIdx := range bivalueIndices {
-		startCell := s.puzzle.Cell(startIdx)
-		candidates := startCell.CandidateValues()
-		for _, startVal := range candidates {
-			otherVal := candidates[0]
-			if otherVal == startVal {
-				otherVal = candidates[1]
-			}
-
-			// State: current cell index, the candidate that MUST be true if the previous link holds.
-			queue := []xyChainState{{startIdx, otherVal}}
-			visited := make(map[xyChainState]xyChainState)
-			visited[xyChainState{startIdx, otherVal}] = xyChainState{node: -1}
-
-			for len(queue) > 0 {
-				curr := queue[0]
-				queue = queue[1:]
-
-				for _, nextIdx := range bivalueIndices {
-					if nextIdx == curr.node || !s.sees(curr.node, nextIdx) {
-						continue
-					}
-
-					nextCell := s.puzzle.Cell(nextIdx)
-					if nextCell.HasCandidate(curr.val) {
-						nextVals := nextCell.CandidateValues()
-						nextVal := nextVals[0]
-						if nextVal == curr.val {
-							nextVal = nextVals[1]
-						}
-
-						nextState := xyChainState{nextIdx, nextVal}
-						if _, ok := visited[nextState]; !ok {
-							visited[nextState] = curr
-							queue = append(queue, nextState)
-
-							if nextVal == startVal {
-								step := NewStep(kindXYChain).WithValues(startVal)
-								if s.eliminatePeerTargets(startVal, startCell, nextCell, step) {
-									chain := s.reconstructXYChainPath(visited, nextState)
-									s.applyStep(step.WithIndices(chain...))
-									found = true
-									// We found one, but we continue to find others from this startIdx/startVal?
-									// Actually, let's return true and let the loop handle it if we want,
-									// or just continue. If we continue, we must be careful not to
-									// use the same elimination again.
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return found
-}
-
-func (s *Solver) reconstructXChainPath(visited map[xChainState]xChainState, end xChainState) []int {
-	var path []int
-	curr := end
-	for curr.node != -1 {
-		path = append(path, curr.node)
-		curr = visited[curr]
-	}
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
-	}
-	return path
-}
-
-func (s *Solver) reconstructXYChainPath(visited map[xyChainState]xyChainState, end xyChainState) []int {
-	var path []int
-	curr := end
-	for curr.node != -1 {
-		path = append(path, curr.node)
-		curr = visited[curr]
-	}
-	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
-		path[i], path[j] = path[j], path[i]
-	}
-	return path
 }
 
 func (s *Solver) findFinnedSwordfish() bool {
@@ -330,7 +155,7 @@ func (s *Solver) findFinnedFishInLines(
 		}
 
 		// Try all combinations of fishSize base lines.
-		if s.checkFinnedFishCombinations(val, fishSize, fishKind, candidates, baseLines, coverLines) {
+		if s.checkFinnedFishCombinations(val, fishSize, fishKind, candidates, coverLines) {
 			return true
 		}
 	}
@@ -341,7 +166,7 @@ func (s *Solver) checkFinnedFishCombinations(
 	val, fishSize int,
 	fishKind techniqueKind,
 	candidates []*House,
-	baseLines, coverLines []*House,
+	coverLines []*House,
 ) bool {
 	var check func(start int, current []*House) bool
 	check = func(start int, current []*House) bool {
@@ -685,7 +510,6 @@ func (s *Solver) findClaimingTuples() (found bool) {
 		// We only need to check rows and columns for Locked Candidates.
 		if s.checkLockedCandidatesForLine(s.rows[i]) ||
 			s.checkLockedCandidatesForLine(s.columns[i]) {
-
 			return true
 		}
 	}
@@ -921,11 +745,7 @@ func (s *Solver) findRemotePairs() (found bool) {
 						continue
 					}
 					if s.sees(u, vIdx) {
-						if vColor, ok := colors[vIdx]; ok {
-							if vColor == uColor {
-								// Odd cycle!
-							}
-						} else {
+						if _, ok := colors[vIdx]; !ok {
 							colors[vIdx] = 1 - uColor
 							visited[vIdx] = true
 							queue = append(queue, vIdx)
@@ -1011,7 +831,6 @@ func (s *Solver) findBUG() (found bool) {
 		if s.rows[bugCell.Row].NumLocations(v) == 3 &&
 			s.columns[bugCell.Col].NumLocations(v) == 3 &&
 			s.boxes[bugCell.Box()].NumLocations(v) == 3 {
-
 			step := NewStep(kindBUG).
 				WithPlacedValue(bugCell.Index(), v)
 			s.applyStep(step)
@@ -1067,7 +886,6 @@ func (s *Solver) findWWing() (found bool) {
 							// AND w1, w2 must NOT be s1 or s2.
 							if (s.sees(w1, s1) && s.sees(w2, s2)) ||
 								(s.sees(w1, s2) && s.sees(w2, s1)) {
-
 								common := s.commonPeers(w1, w2)
 								step := NewStep(kindWWing).
 									WithValues(x, y).
@@ -1141,11 +959,12 @@ func (s *Solver) findEmptyRectangle() (found bool) {
 							locsRP := hRP.Locations(x).Values()
 							c1, c2 := locsRP[0], locsRP[1]
 							var cDoublePrime int
-							if c1 == c {
+							switch c {
+							case c1:
 								cDoublePrime = c2
-							} else if c2 == c {
+							case c2:
 								cDoublePrime = c1
-							} else {
+							default:
 								continue
 							}
 
@@ -1172,11 +991,12 @@ func (s *Solver) findEmptyRectangle() (found bool) {
 							locsCP := hCP.Locations(x).Values()
 							r1, r2 := locsCP[0], locsCP[1]
 							var rDoublePrime int
-							if r1 == r {
+							switch r {
+							case r1:
 								rDoublePrime = r2
-							} else if r2 == r {
+							case r2:
 								rDoublePrime = r1
-							} else {
+							default:
 								continue
 							}
 
@@ -1236,7 +1056,6 @@ func (s *Solver) checkXYWingsForPivot(
 	var xCells, yCells []*puzzle.Cell
 	for _, cell := range candidates {
 		if cell.Index() == pivot.Index() || cell.NumCandidates() != 2 || !seesCell(cell, pivot) {
-
 			continue
 		}
 
@@ -1352,7 +1171,8 @@ func (s *Solver) findAvoidableRectangles() (found bool) {
 						}
 					}
 
-					if solvedCount == 3 {
+					switch solvedCount {
+					case 3:
 						unsolved := cells[unsolvedIdx]
 						oppositeIdx := unsolvedIdx ^ 3
 						rowAdjIdx := unsolvedIdx ^ 1
@@ -1373,7 +1193,7 @@ func (s *Solver) findAvoidableRectangles() (found bool) {
 								return true
 							}
 						}
-					} else if solvedCount == 2 {
+					case 2:
 						// Potential Avoidable Rectangle Type 2.
 						var sIdxs, uIdxs []int
 						for i, c := range cells {
@@ -1480,7 +1300,6 @@ func (s *Solver) checkXYZWingsForPivot(pivot *puzzle.Cell) (found bool) {
 			if cell.Box() == pivot.Box() ||
 				cell.NumCandidates() != 2 ||
 				!cell.HasCandidate(y) {
-
 				return false
 			}
 
@@ -1498,7 +1317,6 @@ func (s *Solver) checkXYZWingsForPivot(pivot *puzzle.Cell) (found bool) {
 			step := NewStep(kindXYZWing)
 			if isYZCandidate(yzCell) &&
 				s.eliminateXYZWingCells(pivot, xzCell, yzCell, step) {
-
 				s.applyStep(step.
 					WithIndices(pivot.Index(), xzCell.Index(), yzCell.Index()).
 					WithValues(pivot.CandidateValues()...))
@@ -1875,7 +1693,6 @@ func (s *Solver) checkFinnedXWings(baseLines, coverLines []*House) bool {
 						// Cannot be any cell in b2 (the fish line itself).
 						if (b1.Kind == kindRow && cell.Row == b2.Index) ||
 							(b1.Kind == kindColumn && cell.Col == b2.Index) {
-
 							continue
 						}
 
@@ -2145,6 +1962,360 @@ func (s *Solver) checkTwoStringKite(val int, row, col *House) (found bool) {
 	return false
 }
 
+func (s *Solver) findSimpleColoring() bool {
+	globalStep := NewStep(kindSimpleColoring)
+	found := false
+
+	for val := 1; val <= 9; val++ {
+		adj := make(map[int][]int)
+		addLink := func(u, v int) {
+			for _, existing := range adj[u] {
+				if existing == v {
+					return
+				}
+			}
+			adj[u] = append(adj[u], v)
+			adj[v] = append(adj[v], u)
+		}
+
+		activeLits := make(map[int]bool)
+		for _, h := range s.houses {
+			// Rule 1: exactly 2 cells
+			locs := h.Unsolved[val].Values()
+			if len(locs) == 2 {
+				u := h.Cells[locs[0]].Index()
+				v := h.Cells[locs[1]].Index()
+				addLink(u, v)
+				activeLits[u] = true
+				activeLits[v] = true
+			}
+
+			// Grouped strong links
+			switch h.Kind {
+			case kindRow:
+				activeBoxes := []int{}
+				for bIdxInRow := 0; bIdxInRow < 3; bIdxInRow++ {
+					boxIdx := (h.Index/3)*3 + bIdxInRow
+					hasCandidate := false
+					for _, cell := range s.boxes[boxIdx].Cells {
+						if cell.Row == h.Index && cell.HasCandidate(val) {
+							hasCandidate = true
+							break
+						}
+					}
+					if hasCandidate {
+						activeBoxes = append(activeBoxes, bIdxInRow)
+					}
+				}
+				if len(activeBoxes) == 2 {
+					u := 81 + h.Index*3 + activeBoxes[0]
+					v := 81 + h.Index*3 + activeBoxes[1]
+					addLink(u, v)
+					activeLits[u] = true
+					activeLits[v] = true
+				}
+			case kindColumn:
+				activeBoxes := []int{}
+				for bIdxInCol := 0; bIdxInCol < 3; bIdxInCol++ {
+					boxIdx := (h.Index/3) + bIdxInCol*3
+					hasCandidate := false
+					for _, cell := range s.boxes[boxIdx].Cells {
+						if cell.Col == h.Index && cell.HasCandidate(val) {
+							hasCandidate = true
+							break
+						}
+					}
+					if hasCandidate {
+						activeBoxes = append(activeBoxes, bIdxInCol)
+					}
+				}
+				if len(activeBoxes) == 2 {
+					u := 108 + h.Index*3 + activeBoxes[0]
+					v := 108 + h.Index*3 + activeBoxes[1]
+					addLink(u, v)
+					activeLits[u] = true
+					activeLits[v] = true
+				}
+			case kindBox:
+				// Rows in box
+				activeRows := []int{}
+				for rInBox := 0; rInBox < 3; rInBox++ {
+					r := (h.Index/3)*3 + rInBox
+					hasCandidate := false
+					for _, cell := range h.Cells {
+						if cell.Row == r && cell.HasCandidate(val) {
+							hasCandidate = true
+							break
+						}
+					}
+					if hasCandidate {
+						activeRows = append(activeRows, r)
+					}
+				}
+				if len(activeRows) == 2 {
+					u := 81 + activeRows[0]*3 + (h.Index % 3)
+					v := 81 + activeRows[1]*3 + (h.Index % 3)
+					addLink(u, v)
+					activeLits[u] = true
+					activeLits[v] = true
+				}
+				// Cols in box
+				activeCols := []int{}
+				for cInBox := 0; cInBox < 3; cInBox++ {
+					c := (h.Index%3)*3 + cInBox
+					hasCandidate := false
+					for _, cell := range h.Cells {
+						if cell.Col == c && cell.HasCandidate(val) {
+							hasCandidate = true
+							break
+						}
+					}
+					if hasCandidate {
+						activeCols = append(activeCols, c)
+					}
+				}
+				if len(activeCols) == 2 {
+					u := 108 + activeCols[0]*3 + (h.Index / 3)
+					v := 108 + activeCols[1]*3 + (h.Index / 3)
+					addLink(u, v)
+					activeLits[u] = true
+					activeLits[v] = true
+				}
+			}
+		}
+
+		visited := make(map[int]bool)
+		for startLit := range activeLits {
+			if visited[startLit] {
+				continue
+			}
+			component := make(map[int]int)
+			queue := []int{startLit}
+			component[startLit] = 0
+			visited[startLit] = true
+			head := 0
+			for head < len(queue) {
+				u := queue[head]
+				head++
+				for _, v := range adj[u] {
+					if _, ok := component[v]; ok {
+						continue
+					}
+					component[v] = 1 - component[u]
+					visited[v] = true
+					queue = append(queue, v)
+				}
+			}
+			colorUnits := [2][]int{}
+			for lit, color := range component {
+				colorUnits[color] = append(colorUnits[color], lit)
+			}
+
+			for color := 0; color < 2; color++ {
+				units := colorUnits[color]
+				contradiction := false
+				for i := 0; i < len(units); i++ {
+					for j := i + 1; j < len(units); j++ {
+						if s.unitsShareHouse(val, units[i], units[j]) {
+							contradiction = true
+							break
+						}
+					}
+					if contradiction {
+						break
+					}
+				}
+				if contradiction {
+					found = true
+					for _, lit := range colorUnits[color] {
+						for _, cIdx := range s.getLitCells(val, lit) {
+							globalStep.DeleteCandidate(cIdx, val)
+						}
+					}
+					for _, lit := range colorUnits[1-color] {
+						cells := s.getLitCells(val, lit)
+						if len(cells) == 1 {
+							globalStep.PlaceCandidate(cells[0], val)
+						} else {
+							s.eliminateFromGroupHouses(val, cells, globalStep)
+						}
+					}
+				}
+			}
+
+			for cIdx := 0; cIdx < 81; cIdx++ {
+				if !s.puzzle.Cell(cIdx).HasCandidate(val) {
+					continue
+				}
+				inComponent := false
+				for lit := range component {
+					for _, uCell := range s.getLitCells(val, lit) {
+						if uCell == cIdx {
+							inComponent = true
+							break
+						}
+					}
+					if inComponent {
+						break
+					}
+				}
+				if !inComponent {
+					sees0 := false
+					for _, lit := range colorUnits[0] {
+						if s.cellSeesAll(cIdx, s.getLitCells(val, lit)) {
+							sees0 = true
+							break
+						}
+					}
+					if sees0 {
+						sees1 := false
+						for _, lit := range colorUnits[1] {
+							if s.cellSeesAll(cIdx, s.getLitCells(val, lit)) {
+								sees1 = true
+								break
+							}
+						}
+						if sees1 {
+							globalStep.DeleteCandidate(cIdx, val)
+							found = true
+						}
+					}
+				}
+			}
+		}
+	}
+	if found {
+		s.applyStep(globalStep)
+	}
+	return found
+}
+
+func (s *Solver) getLitCells(v, lit int) []int {
+	if lit < 81 {
+		return []int{lit}
+	}
+	cells := []int{}
+	if lit < 108 { // rbLit
+		litIdx := lit - 81
+		r := litIdx / 3
+		bIdxInRow := litIdx % 3
+		boxIdx := (r/3)*3 + bIdxInRow
+		for _, cell := range s.boxes[boxIdx].Cells {
+			if cell.Row == r && cell.HasCandidate(v) {
+				cells = append(cells, cell.Index())
+			}
+		}
+	} else { // cbLit
+		litIdx := lit - 108
+		c := litIdx / 3
+		bIdxInCol := litIdx % 3
+		boxIdx := (c/3) + bIdxInCol*3
+		for _, cell := range s.boxes[boxIdx].Cells {
+			if cell.Col == c && cell.HasCandidate(v) {
+				cells = append(cells, cell.Index())
+			}
+		}
+	}
+	return cells
+}
+
+func (s *Solver) unitsShareHouse(v, lit1, lit2 int) bool {
+	cells1 := s.getLitCells(v, lit1)
+	cells2 := s.getLitCells(v, lit2)
+	houses1 := s.getHousesContainingAll(cells1)
+	houses2 := s.getHousesContainingAll(cells2)
+	for _, h1 := range houses1 {
+		for _, h2 := range houses2 {
+			if h1 == h2 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *Solver) getHousesContainingAll(cells []int) []int {
+	if len(cells) == 0 {
+		return nil
+	}
+	res := []int{}
+	// Row
+	r := cells[0] / 9
+	allInRow := true
+	for _, c := range cells {
+		if c/9 != r {
+			allInRow = false
+			break
+		}
+	}
+	if allInRow {
+		res = append(res, r)
+	}
+	// Col
+	col := cells[0] % 9
+	allInCol := true
+	for _, c := range cells {
+		if c%9 != col {
+			allInCol = false
+			break
+		}
+	}
+	if allInCol {
+		res = append(res, 9+col)
+	}
+	// Box
+	b := (cells[0] / 9 / 3) * 3 + (cells[0] % 9 / 3)
+	allInBox := true
+	for _, c := range cells {
+		if (c/9/3)*3+(c%9/3) != b {
+			allInBox = false
+			break
+		}
+	}
+	if allInBox {
+		res = append(res, 18+b)
+	}
+	return res
+}
+
+func (s *Solver) cellSeesAll(c int, cells []int) bool {
+	if len(cells) == 0 {
+		return false
+	}
+	for _, other := range cells {
+		if c == other || !s.sees(c, other) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Solver) eliminateFromGroupHouses(v int, cells []int, step *SolutionStep) {
+	houses := s.getHousesContainingAll(cells)
+	for _, hIdx := range houses {
+		var h *House
+		switch {
+		case hIdx < 9:
+			h = s.rows[hIdx]
+		case hIdx < 18:
+			h = s.columns[hIdx-9]
+		default:
+			h = s.boxes[hIdx-18]
+		}
+
+		cellSet := make(map[int]bool)
+		for _, c := range cells {
+			cellSet[c] = true
+		}
+
+		for _, cell := range h.Cells {
+			if !cellSet[cell.Index()] && cell.HasCandidate(v) {
+				step.DeleteCandidate(cell.Index(), v)
+			}
+		}
+	}
+}
+
 // UNIQUENESS TECHNIQUES
 
 func (s *Solver) findUniqueRectangleType1() (found bool) {
@@ -2203,7 +2374,6 @@ func (s *Solver) checkUniqueRectangleForCell(base *puzzle.Cell) (found bool) {
 	// the same box as the base.
 	if rowWing.Box() != colWing.Box() &&
 		(rowWing.Box() == base.Box() || colWing.Box() == base.Box()) {
-
 		// These cells form a unique rectangle, so we can eliminate their candidates
 		// from the cell at the 4th corner of the rectangle, which will have the
 		// same row as the column-wing and the same column as the row-wing.
@@ -2576,7 +2746,6 @@ func (s *Solver) findUniqueRectangleType4() (found bool) {
 
 											if (c1Idx == extraCells[0].Index() && c2Idx == extraCells[1].Index()) ||
 												(c1Idx == extraCells[1].Index() && c2Idx == extraCells[0].Index()) {
-
 												// Elimination: otherVal can be removed from extraCells.
 												step := NewStep(kindUniqueRectangle4).
 													WithValues(x, y).
@@ -2652,4 +2821,277 @@ func (s *Solver) applyBruteForceSteps(dl *DancingLinks) {
 		// Place the value in the puzzle.
 		s.puzzle.PlaceValue(step.Index, step.Value)
 	}
+}
+
+func (s *Solver) findSueDeCoq() bool {
+	deleted := make([]bitset.BitSet16, 81)
+
+	// 54 intersections: 27 box-row, 27 box-column
+	for bIdx := 0; bIdx < 9; bIdx++ {
+		box := s.boxes[bIdx]
+		// Box bIdx intersects 3 rows:
+		for rIdx := (bIdx / 3) * 3; rIdx < (bIdx/3)*3+3; rIdx++ {
+			step := NewStep(kindSueDeCoq)
+			if s.checkSueDeCoq(box, s.rows[rIdx], step, deleted) {
+				s.applyStep(step)
+				return true
+			}
+		}
+		// Box bIdx intersects 3 columns:
+		for cIdx := (bIdx % 3) * 3; cIdx < (bIdx%3)*3+3; cIdx++ {
+			step := NewStep(kindSueDeCoq)
+			if s.checkSueDeCoq(box, s.columns[cIdx], step, deleted) {
+				s.applyStep(step)
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *Solver) checkSueDeCoq(box, line *House, step *SolutionStep, deleted []bitset.BitSet16) bool {
+	// 1. Identify intersection cells S (unsolved)
+	var sCells []*puzzle.Cell
+	for _, cell := range box.Cells {
+		if (line.Kind == kindRow && cell.Row == line.Index) ||
+			(line.Kind == kindColumn && cell.Col == line.Index) {
+			if !cell.IsSolved() {
+				sCells = append(sCells, cell)
+			}
+		}
+	}
+
+	if len(sCells) < 2 {
+		return false
+	}
+
+	// 2. Identify potential cells in Box and Line (outside intersection)
+	var bPossible []*puzzle.Cell
+	for _, cell := range box.Cells {
+		if cell.IsSolved() {
+			continue
+		}
+		inS := false
+		for _, sc := range sCells {
+			if cell.Index() == sc.Index() {
+				inS = true
+				break
+			}
+		}
+		if !inS {
+			bPossible = append(bPossible, cell)
+		}
+	}
+
+	var lPossible []*puzzle.Cell
+	for _, cell := range line.Cells {
+		if cell.IsSolved() {
+			continue
+		}
+		inS := false
+		for _, sc := range sCells {
+			if cell.Index() == sc.Index() {
+				inS = true
+				break
+			}
+		}
+		if !inS {
+			lPossible = append(lPossible, cell)
+		}
+	}
+
+	found := false
+	// 3. Try all combinations of subsetB (0 to 2 cells) and subsetL (0 to 2 cells)
+	for bSize := 0; bSize <= 2 && bSize <= len(bPossible); bSize++ {
+		var checkB func(startB int, currentB []*puzzle.Cell)
+		checkB = func(startB int, currentB []*puzzle.Cell) {
+			if found {
+				return
+			}
+			if len(currentB) == bSize {
+				var candB bitset.BitSet16
+				for _, bc := range currentB {
+					candB.Union(bc.Candidates.Difference(deleted[bc.Index()]))
+				}
+
+				for lSize := 0; lSize <= 2 && lSize <= len(lPossible); lSize++ {
+					if found {
+						break
+					}
+					if bSize == 0 && lSize == 0 {
+						continue
+					}
+
+					var checkL func(startL int, currentL []*puzzle.Cell)
+					checkL = func(startL int, currentL []*puzzle.Cell) {
+						if found {
+							return
+						}
+						if len(currentL) == lSize {
+							var candL bitset.BitSet16
+							for _, lc := range currentL {
+								candL.Union(lc.Candidates.Difference(deleted[lc.Index()]))
+							}
+
+							// S = sCells ∪ currentB ∪ currentL
+							numCells := len(sCells) + len(currentB) + len(currentL)
+
+							var currentCandI bitset.BitSet16
+							for _, sc := range sCells {
+								currentCandI.Union(sc.Candidates.Difference(deleted[sc.Index()]))
+							}
+
+							candS := bitset.Union(currentCandI, candB, candL)
+
+							if candS.Size() == numCells {
+								if s.applySueDeCoq(sCells, currentB, currentL, currentCandI, candB, candL, box, line, step, deleted) {
+									found = true
+								}
+							}
+							return
+						}
+
+						for i := startL; i < len(lPossible); i++ {
+							checkL(i+1, append(currentL, lPossible[i]))
+						}
+					}
+					checkL(0, nil)
+				}
+				return
+			}
+
+			for i := startB; i < len(bPossible); i++ {
+				checkB(i+1, append(currentB, bPossible[i]))
+			}
+		}
+		checkB(0, nil)
+		if found {
+			break
+		}
+	}
+
+	return found
+}
+
+func (s *Solver) applySueDeCoq(
+	sCells, bCells, lCells []*puzzle.Cell,
+	candI, candB, candL bitset.BitSet16,
+	box, line *House,
+	step *SolutionStep,
+	deleted []bitset.BitSet16,
+) bool {
+	// S = sCells ∪ bCells ∪ lCells
+	candS := bitset.Union(candI, candB, candL)
+
+	foundElim := false
+
+	// Elimination 1: Digits in (candI ∪ candB) \ candL from Box \ (sCells ∪ bCells)
+	elimB := bitset.Union(candI, candB).Difference(candL)
+	if !elimB.Empty() {
+		for _, cell := range box.Cells {
+			if cell.IsSolved() {
+				continue
+			}
+			// Is it in sCells or bCells?
+			inS := false
+			for _, sc := range sCells {
+				if cell.Index() == sc.Index() {
+					inS = true
+					break
+				}
+			}
+			if !inS {
+				for _, bc := range bCells {
+					if cell.Index() == bc.Index() {
+						inS = true
+						break
+					}
+				}
+			}
+			if inS {
+				continue
+			}
+
+			common := cell.Candidates.Intersection(elimB)
+			for v := range common.All() {
+				if !deleted[cell.Index()].Contains(v) {
+					step.DeleteCandidate(cell.Index(), v)
+					deleted[cell.Index()].Add(v)
+					foundElim = true
+				}
+			}
+		}
+	}
+
+	// Elimination 2: Digits in (candI ∪ candL) \ candB from Line \ (sCells ∪ lCells)
+	elimL := bitset.Union(candI, candL).Difference(candB)
+	if !elimL.Empty() {
+		for _, cell := range line.Cells {
+			if cell.IsSolved() {
+				continue
+			}
+			// Is it in sCells or lCells?
+			inS := false
+			for _, sc := range sCells {
+				if cell.Index() == sc.Index() {
+					inS = true
+					break
+				}
+			}
+			if !inS {
+				for _, lc := range lCells {
+					if cell.Index() == lc.Index() {
+						inS = true
+						break
+					}
+				}
+			}
+			if inS {
+				continue
+			}
+
+			common := cell.Candidates.Intersection(elimL)
+			for v := range common.All() {
+				if !deleted[cell.Index()].Contains(v) {
+					step.DeleteCandidate(cell.Index(), v)
+					deleted[cell.Index()].Add(v)
+					foundElim = true
+				}
+			}
+		}
+	}
+
+	if foundElim {
+		step.WithBases(box, line)
+		for _, v := range candS.Values() {
+			found := false
+			for _, ev := range step.values {
+				if ev == v {
+					found = true
+					break
+				}
+			}
+			if !found {
+				step.values = append(step.values, v)
+			}
+		}
+
+		cells := append(append(append([]*puzzle.Cell{}, sCells...), bCells...), lCells...)
+		for _, c := range cells {
+			idx := c.Index()
+			found := false
+			for _, eidx := range step.indices {
+				if eidx == idx {
+					found = true
+					break
+				}
+			}
+			if !found {
+				step.indices = append(step.indices, idx)
+			}
+		}
+		return true
+	}
+	return false
 }

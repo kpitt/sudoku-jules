@@ -9,6 +9,8 @@ import (
 )
 
 type (
+	// Solver is the main solver object that contains the puzzle state and
+	// solver options.
 	Solver struct {
 		puzzle *puzzle.Puzzle
 		*Options
@@ -27,13 +29,14 @@ type (
 
 		solution []*SolutionStep
 
+		// cellPeers is a reference to globalCellPeers
+		cellPeers [81][]int
+
 		// stats
 		SolveTime time.Duration
 
 		IsNonUnique  bool
 		IsUnsolvable bool
-
-		cellPeers [81][]int
 	}
 
 	// Options that control the behavior of the solver.
@@ -46,12 +49,10 @@ type (
 
 		DisableAutomaticSingles bool // disable automatic Naked Single detection during candidate removal
 	}
-)
 
-// Convenient type aliases that give semantic meaning to commonly used maps
-// and sets.
-type (
+	// LocSet is a bitset that represents a set of locations.
 	LocSet = bitset.BitSet16
+	// ValSet is a bitset that represents a set of values.
 	ValSet = bitset.BitSet16
 	// ValLocMap maps a value to the set of locations where it is a candidate.
 	// Index 0 is unused, indices 1-9 correspond to values 1-9.
@@ -87,6 +88,7 @@ func init() {
 	}
 }
 
+// NewSolver creates a new Solver for the given puzzle and options.
 func NewSolver(p *puzzle.Puzzle, opts *Options) *Solver {
 	if opts == nil {
 		opts = &Options{}
@@ -218,7 +220,13 @@ func (s *Solver) commonPeers(i, j int) []int {
 	return common
 }
 
-func (s *Solver) PlaceValue(idx int, val int) {
+// PlaceValue places a value in the puzzle and updates the solver state.
+func (s *Solver) PlaceValue(idx, val int) {
+	if cell := s.puzzle.Cell(idx); cell.IsSolved() {
+		if cell.Value() == val {
+			return
+		}
+	}
 	if s.puzzle.PlaceValue(idx, val) {
 		s.eliminateCandidates(idx, val)
 	}
@@ -226,7 +234,7 @@ func (s *Solver) PlaceValue(idx int, val int) {
 
 // eliminateCandidates removes val from all cached candidates for the row,
 // column, and box containing the cell at index idx.
-func (s *Solver) eliminateCandidates(idx int, val int) {
+func (s *Solver) eliminateCandidates(idx, val int) {
 	r, c := idx/9, idx%9
 	// Get the peer locations in the row, column, and box of cell (r,c) that
 	// contain val as a candidate.
@@ -266,7 +274,7 @@ func (s *Solver) eliminateCandidates(idx int, val int) {
 	}
 }
 
-func (s *Solver) removeCellCandidate(idx int, val int) {
+func (s *Solver) removeCellCandidate(idx, val int) {
 	cell := s.puzzle.Cell(idx)
 
 	// Make sure val is removed from the candidates for this cell.
@@ -308,6 +316,10 @@ func (s *Solver) applyStep(step *SolutionStep) {
 		// Apply the candidates eliminated by this step.
 		for _, dc := range step.deletedCandidates {
 			s.removeCellCandidate(dc.Index, dc.Value)
+		}
+		// Apply the candidates placed by this step.
+		for _, pc := range step.placedCandidates {
+			s.PlaceValue(pc.Index, pc.Value)
 		}
 	}
 }

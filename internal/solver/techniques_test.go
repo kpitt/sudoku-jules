@@ -173,10 +173,7 @@ func TestXYChain(t *testing.T) {
 	solver.processInitialValues()
 
 	found := false
-	for {
-		if !solver.findXYChains() {
-			break
-		}
+	for solver.findXYChains() {
 		found = true
 		// Check if we already eliminated what we wanted
 		idx1 := (5-1)*9 + (8-1)
@@ -293,13 +290,10 @@ func TestUniqueRectangleType2(t *testing.T) {
 	// (0,3) and (1,3) in Box 1.
 	
 	// Solved corners (non-givens)
-	// Corner (0,0) = 1
 	p.Get(0, 0).PlaceValue(1)
-	// Corner (0,3) = 2
 	p.Get(0, 3).PlaceValue(2)
-	// Corner (1,0) = 2
 	p.Get(1, 0).PlaceValue(2)
-	
+
 	// Unsolved corner (1,3) has {1, 2, 3}
 	// If (1,3) is 1, we have a deadly pattern {1, 2, 2, 1}.
 	setCandidate(1, 3, 1)
@@ -316,12 +310,10 @@ func TestUniqueRectangleType2(t *testing.T) {
 	}
 }
 
-	func TestFindTwoStringKite(t *testing.T) {
-
+func TestFindTwoStringKite(t *testing.T) {
 	p := puzzle.NewPuzzle()
 	s := NewSolver(p, nil)
 	val := 1
-
 	setCandidate := func(r, c int) {
 		p.Get(r, c).Candidates.Add(val)
 		s.rows[r].Unsolved[val].Add(c)

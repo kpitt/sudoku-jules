@@ -1,9 +1,12 @@
+// Package puzzle provides the core data structures and logic for representing
+// and manipulating a Sudoku puzzle.
 package puzzle
 
 import "github.com/kpitt/sudoku/internal/bitset"
 
 const allDigitBits = 0b1111111110
 
+// Cell represents a single square in a Sudoku puzzle.
 type Cell struct {
 	Row, Col int
 	IsGiven  bool
@@ -12,6 +15,7 @@ type Cell struct {
 	Candidates bitset.BitSet16
 }
 
+// NewCell initializes a new cell at the given row and column.
 func NewCell(r, c int) Cell {
 	return Cell{
 		Row: r, Col: c,
@@ -24,10 +28,12 @@ func (c *Cell) IsSolved() bool {
 	return c.value > 0
 }
 
+// Index returns the 0-indexed position of the cell in a flat 81-cell array.
 func (c *Cell) Index() int {
 	return c.Row*9 + c.Col
 }
 
+// Value returns the value currently placed in the cell, or 0 if unsolved.
 func (c *Cell) Value() int {
 	return c.value
 }
@@ -46,18 +52,25 @@ func (c *Cell) GivenValue(val int) {
 	c.PlaceValue(val)
 }
 
+// NumCandidates returns the number of potential values that could be placed in
+// this cell.
 func (c *Cell) NumCandidates() int {
 	return c.Candidates.Size()
 }
 
+// CandidateValues returns a slice of all potential values that could be placed
+// in this cell.
 func (c *Cell) CandidateValues() []int {
 	return c.Candidates.Values()
 }
 
+// HasCandidate returns true if the specified value is a potential candidate for
+// this cell.
 func (c *Cell) HasCandidate(val int) bool {
 	return c.Candidates.Contains(val)
 }
 
+// RemoveCandidate removes the specified value from the cell's potential candidates.
 func (c *Cell) RemoveCandidate(val int) {
 	c.Candidates.Remove(val)
 }

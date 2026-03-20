@@ -36,18 +36,19 @@ var (
 
 func init() {
 	for i := 0; i < 324; i++ {
-		if i < 81 {
+		switch {
+		case i < 81:
 			r, c := i/9+1, i%9+1
 			globalColumnNames[i] = fmt.Sprintf("R%dC%d", r, c)
-		} else if i < 162 {
+		case i < 162:
 			idx := i - 81
 			r, val := idx/9+1, idx%9+1
 			globalColumnNames[i] = fmt.Sprintf("R%d#%d", r, val)
-		} else if i < 243 {
+		case i < 243:
 			idx := i - 162
 			c, val := idx/9+1, idx%9+1
 			globalColumnNames[i] = fmt.Sprintf("C%d#%d", c, val)
-		} else {
+		default:
 			idx := i - 243
 			box, val := idx/9+1, idx%9+1
 			globalColumnNames[i] = fmt.Sprintf("B%d#%d", box, val)
@@ -292,7 +293,7 @@ func (dl *DancingLinks) GetSolution() []Candidate {
 }
 
 // decodeRow extracts the row, column, and value from a row ID
-func (dl *DancingLinks) decodeRow(rowID int) (row, col int, val int) {
+func (dl *DancingLinks) decodeRow(rowID int) (row, col, val int) {
 	if rowID >= 0 && rowID < len(dl.candidates) {
 		c := dl.candidates[rowID]
 		idx := c.Index

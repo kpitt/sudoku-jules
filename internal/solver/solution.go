@@ -26,47 +26,57 @@ type (
 		bases             []*House
 		covers            []*House
 		deletedCandidates []Candidate
+		placedCandidates  []Candidate
 	}
 )
 
+// NewStep creates a new solution step of the given technique kind.
 func NewStep(tk techniqueKind) *SolutionStep {
 	return &SolutionStep{
 		technique:         tk,
 		deletedCandidates: make([]Candidate, 0),
+		placedCandidates:  make([]Candidate, 0),
 	}
 }
 
+// WithHouse associates a house with the solution step.
 func (step *SolutionStep) WithHouse(h *House) *SolutionStep {
 	step.house = h
 	return step
 }
 
+// WithValues adds one or more values to the solution step.
 func (step *SolutionStep) WithValues(values ...int) *SolutionStep {
 	step.values = append(step.values, values...)
 	return step
 }
 
+// WithIndices adds one or more cell indices to the solution step.
 func (step *SolutionStep) WithIndices(indices ...int) *SolutionStep {
 	step.indices = append(step.indices, indices...)
 	return step
 }
 
-func (step *SolutionStep) WithPlacedValue(idx int, v int) *SolutionStep {
+// WithPlacedValue sets the index and value for a single placed value.
+func (step *SolutionStep) WithPlacedValue(idx, v int) *SolutionStep {
 	step.indices = []int{idx}
 	step.values = []int{v}
 	return step
 }
 
+// WithBases adds one or more base houses to the solution step.
 func (step *SolutionStep) WithBases(bases ...*House) *SolutionStep {
 	step.bases = append(step.bases, bases...)
 	return step
 }
 
+// WithCovers adds one or more cover houses to the solution step.
 func (step *SolutionStep) WithCovers(covers ...*House) *SolutionStep {
 	step.covers = append(step.covers, covers...)
 	return step
 }
 
+// IsSingle returns true if the solution step represents a single value placement.
 func (step *SolutionStep) IsSingle() bool {
 	return step.technique == kindFullHouse ||
 		step.technique == kindNakedSingle ||
@@ -75,6 +85,7 @@ func (step *SolutionStep) IsSingle() bool {
 		((step.technique == kindAIC || step.technique == kindNiceLoop) && len(step.values) == 1 && len(step.indices) == 1 && len(step.deletedCandidates) == 0)
 }
 
+// DeleteCandidate adds a candidate to be deleted by this solution step.
 func (step *SolutionStep) DeleteCandidate(index, value int) {
 	for _, c := range step.deletedCandidates {
 		if c.Index == index && c.Value == value {
@@ -84,6 +95,17 @@ func (step *SolutionStep) DeleteCandidate(index, value int) {
 	step.deletedCandidates = append(step.deletedCandidates, Candidate{Index: index, Value: value})
 }
 
+// PlaceCandidate adds a candidate to be placed by this solution step.
+func (step *SolutionStep) PlaceCandidate(index, value int) {
+	for _, c := range step.placedCandidates {
+		if c.Index == index && c.Value == value {
+			return
+		}
+	}
+	step.placedCandidates = append(step.placedCandidates, Candidate{Index: index, Value: value})
+}
+
+// FormatStep returns a human-readable description of the solution step.
 func (s *Solver) FormatStep(step *SolutionStep) string {
 	desc := s.getStepDescription(step)
 	return s.formatNamedStep(step, desc)
@@ -146,11 +168,17 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 	case kindRemotePair:
 		return step.formatRemotePair()
 
+	case kindSimpleColoring:
+		return step.formatSimpleColoring()
+
 	case kindWWing:
 		return step.formatWWing()
 
 	case kindBUG:
 		return step.formatBUG()
+
+	case kindSueDeCoq:
+		return step.formatSueDeCoq()
 
 	case kindXChain, kindXYChain:
 		return step.formatChain()
@@ -260,6 +288,37 @@ func (step *SolutionStep) formatRemotePair() string {
 		step.formatValuesList(), step.formatIndices())
 }
 
+func (step *SolutionStep) formatSimpleColoring() string {
+	placements := step.formatPlacedCandidates()
+	eliminations := step.formatDeletedCandidates()
+	if placements != "" && eliminations != "" {
+		return fmt.Sprintf("%s, %s", placements, eliminations)
+	}
+	if placements != "" {
+		return placements
+	}
+	return eliminations
+}
+
+func (step *SolutionStep) formatPlacedCandidates() string {
+	// Group placements by value for compact formatting.
+	locsByValue := make(map[int][]int)
+	for _, c := range step.placedCandidates {
+		locsByValue[c.Value] = append(locsByValue[c.Value], c.Index)
+	}
+	orderedValues := mapKeys(locsByValue)
+	slices.Sort(orderedValues)
+	var result string
+	for i, v := range orderedValues {
+		if i > 0 {
+			result += ", "
+		}
+		result += formatCellsCompact(locsByValue[v])
+		result += fmt.Sprintf("=%d", v)
+	}
+	return result
+}
+
 func (step *SolutionStep) formatWWing() string {
 	// indices[0,1] are the bivalue cells, indices[2,3] are the strong link.
 	return step.formatElimination("%s in %s (connected by %d in %s-%s)",
@@ -269,6 +328,11 @@ func (step *SolutionStep) formatWWing() string {
 
 func (step *SolutionStep) formatBUG() string {
 	return fmt.Sprintf("%s=%d", puzzle.FormatCell(step.indices[0]), step.values[0])
+}
+
+func (step *SolutionStep) formatSueDeCoq() string {
+	return step.formatElimination("%s in %s",
+		step.formatValuesList(), step.formatIndices())
 }
 
 func (step *SolutionStep) formatChain() string {
@@ -359,7 +423,7 @@ func formatCellsCompact(cells []int) string {
 
 	var result string
 	for len(cells) > 0 {
-		if len(result) > 0 {
+		if result != "" {
 			result += ","
 		}
 
@@ -380,16 +444,17 @@ func formatCellsCompact(cells []int) string {
 		var row, col int
 		for i, cell := range cells {
 			r, c := rowColFromIndex(cell)
-			if i == 0 {
+			switch {
+			case i == 0:
 				// First cell
 				row, col = r, c
 				appendRow(row)
 				appendCol(col)
-			} else if r == row && len(rows) == 1 {
+			case r == row && len(rows) == 1:
 				appendCol(c)
-			} else if c == col && len(cols) == 1 {
+			case c == col && len(cols) == 1:
 				appendRow(r)
-			} else {
+			default:
 				// Cell is not in the same line as the first cell, so save it
 				// for processing in the next pass.
 				remainingCells = append(remainingCells, cell)

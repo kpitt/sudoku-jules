@@ -7,13 +7,14 @@ import (
 	"unicode"
 )
 
+// FromFile reads a Sudoku puzzle from the specified file.
 func FromFile(f *os.File) (*Puzzle, error) {
 	var buf strings.Builder
-	if data, err := io.ReadAll(f); err != nil {
+	data, err := io.ReadAll(f)
+	if err != nil {
 		return nil, err
-	} else {
-		_, _ = buf.Write(data)
 	}
+	_, _ = buf.Write(data)
 	return FromString(buf.String())
 }
 
@@ -121,13 +122,8 @@ func FromHodokuString(s string) (*Puzzle, error) {
 		return nil, errPuzzleFormat("invalid Hodoku format string (expected 8 parts, got %d)", len(parts))
 	}
 
-	// technique := parts[1]
-	// candidates := parts[2]
 	givensStr := parts[3]
 	deletedStr := parts[4]
-	// elimStr := parts[5]
-	// placements := parts[6]
-	// extra := parts[7]
 
 	p := NewPuzzle()
 
@@ -138,7 +134,8 @@ func FromHodokuString(s string) (*Puzzle, error) {
 	idx := 0
 	for i := 0; i < len(givensStr) && idx < 81; i++ {
 		c := givensStr[i]
-		if c == '+' {
+		switch {
+		case c == '+':
 			i++
 			if i >= len(givensStr) {
 				return nil, errPuzzleFormat("invalid Hodoku givens: trailing +")
@@ -150,9 +147,9 @@ func FromHodokuString(s string) (*Puzzle, error) {
 			val := int(c - '0')
 			p.PlaceValue(idx, val)
 			idx++
-		} else if c == '.' || c == '0' {
+		case c == '.' || c == '0':
 			idx++
-		} else if unicode.IsDigit(rune(c)) {
+		case unicode.IsDigit(rune(c)):
 			val := int(c - '0')
 			p.GivenValue(idx, val)
 			idx++
@@ -180,10 +177,6 @@ func FromHodokuString(s string) (*Puzzle, error) {
 			p.Get(row, col).RemoveCandidate(val)
 		}
 	}
-
-	// Parse eliminations
-	// We don't apply these here, as they are intended to be verified by the solver.
-	// if elimStr != "" { ... }
 
 	return p, nil
 }

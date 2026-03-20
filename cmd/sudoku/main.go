@@ -1,3 +1,4 @@
+// Package main provides the entry point for the Sudoku solver CLI.
 package main
 
 import (
@@ -38,7 +39,11 @@ func main() {
 		if err != nil {
 			fatalError(err.Error())
 		}
-		defer f.Close()
+		defer func() {
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "error closing file: %v\n", err)
+			}
+		}()
 		input = f
 	} else {
 		input = os.Stdin

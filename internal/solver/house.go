@@ -41,8 +41,10 @@ var houseKindShortNames = []string{
 	"b",
 }
 
+// UnsolvedFilter is a function that filters unsolved digits.
 type UnsolvedFilter = func(int, LocSet) bool
 
+// NewHouse creates a new House of the given kind and index.
 func NewHouse(kind houseKind, index int) *House {
 	h := &House{
 		Kind:  kind,
@@ -54,18 +56,19 @@ func NewHouse(kind houseKind, index int) *House {
 	return h
 }
 
+// Name returns the name of the house kind.
 func (h *House) Name() string {
 	return houseKindNames[h.Kind]
 }
 
 // RemoveCandidateLoc removes loc from the candidate locations for value val.
-func (h *House) RemoveCandidateLoc(val int, loc int) {
+func (h *House) RemoveCandidateLoc(val, loc int) {
 	h.Unsolved[val].Remove(loc)
 }
 
 // RemoveCandidateValue removes all candidate locations that conflict with a
 // solved value of val in loc.
-func (h *House) RemoveCandidateValue(val int, loc int) {
+func (h *House) RemoveCandidateValue(val, loc int) {
 	// val is no longer an unsolved candidate for any cell in this house.
 	h.Unsolved[val].Clear()
 	// Location loc is solved, so no other value can be placed there.
@@ -74,6 +77,7 @@ func (h *House) RemoveCandidateValue(val int, loc int) {
 	}
 }
 
+// NumUnsolved returns the number of unsolved digits in the house.
 func (h *House) NumUnsolved() int {
 	count := 0
 	for i := 1; i <= 9; i++ {
@@ -84,6 +88,7 @@ func (h *House) NumUnsolved() int {
 	return count
 }
 
+// UnsolvedDigits returns a slice of all unsolved digits in the house.
 func (h *House) UnsolvedDigits() []int {
 	digits := make([]int, 0, 9)
 	for i := 1; i <= 9; i++ {
@@ -94,6 +99,7 @@ func (h *House) UnsolvedDigits() []int {
 	return digits
 }
 
+// UnsolvedCells returns a slice of indices for all unsolved cells in the house.
 func (h *House) UnsolvedCells() []int {
 	var indices []int
 	for _, c := range h.Cells {
@@ -104,10 +110,12 @@ func (h *House) UnsolvedCells() []int {
 	return indices
 }
 
+// NumLocations returns the number of possible locations for the given value.
 func (h *House) NumLocations(val int) int {
 	return h.Unsolved[val].Size()
 }
 
+// Locations returns the set of possible locations for the given value.
 func (h *House) Locations(val int) *LocSet {
 	return &h.Unsolved[val]
 }

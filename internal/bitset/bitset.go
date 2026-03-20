@@ -1,3 +1,4 @@
+// Package bitset provides an efficient bitset implementation for small integers.
 package bitset
 
 import (

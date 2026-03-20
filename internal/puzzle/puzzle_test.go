@@ -2,6 +2,7 @@ package puzzle
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -80,7 +81,8 @@ func TestPlaceValue_AlreadySolved(t *testing.T) {
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 
-	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
+	var e *exec.ExitError
+	if errors.As(err, &e) && !e.Success() {
 		expected := "cell r1c1 is already solved (value=5)"
 		if !strings.Contains(stderr.String(), expected) {
 			t.Errorf("Expected error message containing %q, got %q", expected, stderr.String())
