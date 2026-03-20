@@ -42,7 +42,7 @@ func RunRegressionFile(filename string) (*RegressionStats, error) {
 		}
 
 		stats.Total++
-		if pass, err := runTestCase(line); err != nil {
+		if pass, err := runTestCase(line, lineNum); err != nil {
 			fmt.Printf("Line %d: ERROR: %v\n", lineNum, err)
 			stats.Failed++
 		} else if pass {
@@ -57,7 +57,7 @@ func RunRegressionFile(filename string) (*RegressionStats, error) {
 	return stats, scanner.Err()
 }
 
-func runTestCase(line string) (bool, error) {
+func runTestCase(line string, lineNum int) (bool, error) {
 	p, err := puzzle.FromHodokuString(line)
 	if err != nil {
 		return false, fmt.Errorf("parse error: %v", err)
@@ -246,7 +246,7 @@ func techName(k techniqueKind) string {
 		"Empty Rectangle", "W-Wing", "XY-Wing", "XYZ-Wing", "Avoidable Rectangle",
 		"Unique Rectangle Type 1", "Unique Rectangle Type 2", "Unique Rectangle Type 3", "Unique Rectangle Type 4",
 		"Hidden Rectangle", "Finned X-Wing", "Finned Swordfish", "Finned Jellyfish", "Sue de Coq",
-		"Simple Coloring", "Multi-Coloring", "X-Chain", "XY-Chain", "Brute Force",
+		"Simple Coloring", "Multi-Coloring", "X-Chain", "XY-Chain", "Nice Loop", "AIC", "ALS-XZ", "ALS-XY-Wing", "Brute Force",
 	}
 	if int(k) < len(names) {
 		return names[k]
@@ -280,11 +280,17 @@ var hodokuIDToKind = map[string]techniqueKind{
 	"0400": kindSkyscraper,
 	"0401": kindTwoStringKite,
 	"0402": kindEmptyRectangle,
+	"0701": kindXChain,
+	"0702": kindAIC,
+	"0708": kindAIC,
+	"0707": kindNiceLoop,
 	"0703": kindRemotePair,
 	"0610": kindBUG,
 	"0803": kindWWing,
 	"0800": kindXYWing,
 	"0801": kindXYZWing,
+	"0901": kindALSXZ,
+	"0902": kindALSXYWing,
 	"0600": kindUniqueRectangle1,
 	"0601": kindUniqueRectangle2,
 	"0602": kindUniqueRectangle3,

@@ -94,6 +94,16 @@ func (h *House) UnsolvedDigits() []int {
 	return digits
 }
 
+func (h *House) UnsolvedCells() []int {
+	var indices []int
+	for _, c := range h.Cells {
+		if !c.IsSolved() {
+			indices = append(indices, c.Index())
+		}
+	}
+	return indices
+}
+
 func (h *House) NumLocations(val int) int {
 	return h.Unsolved[val].Size()
 }

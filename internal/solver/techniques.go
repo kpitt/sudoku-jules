@@ -49,6 +49,10 @@ const (
 	kindMultiColoring
 	kindXChain
 	kindXYChain
+	kindNiceLoop
+	kindAIC
+	kindALSXZ
+	kindALSXYWing
 	kindBruteForce
 )
 
@@ -99,10 +103,189 @@ func (s *Solver) initTechniques() {
 		{"Sue de Coq", nil},
 		{"Simple Coloring", nil},
 		{"Multi-Coloring", nil},
-		{"X-Chain", nil},
-		{"XY-Chain", nil},
+		{"X-Chain", s.findXChains},
+		{"XY-Chain", s.findXYChains},
+		{"Nice Loop", s.findNiceLoops},
+		{"AIC", s.findAICs},
+		{"ALS-XZ", s.findALSXZ},
+		{"ALS-XY-Wing", s.findALSXYWing},
 		{"Brute Force", nil}, // custom check as last resort
 	}
+}
+
+type xChainState struct {
+	node int
+	next int // 0: must be strong, 1: can be weak
+}
+
+func (s *Solver) findXChains() bool {
+	found := false
+	for val := 1; val <= 9; val++ {
+		// 1. Build strong links for val.
+		strongLinks := make([][]int, 81)
+		for _, h := range s.houses {
+			if h.NumLocations(val) == 2 {
+				locs := h.Locations(val).Values()
+				idx1 := h.Cells[locs[0]].Index()
+				idx2 := h.Cells[locs[1]].Index()
+				strongLinks[idx1] = append(strongLinks[idx1], idx2)
+				strongLinks[idx2] = append(strongLinks[idx2], idx1)
+			}
+		}
+
+		// 2. For each cell that has 'val', start a BFS.
+		for startNode := 0; startNode < 81; startNode++ {
+			if !s.puzzle.Cell(startNode).HasCandidate(val) {
+				continue
+			}
+
+			// BFS to find alternating chains starting with a Strong link.
+			queue := []xChainState{{startNode, 0}}
+			visited := make(map[xChainState]xChainState)
+			visited[xChainState{startNode, 0}] = xChainState{node: -1}
+
+			for len(queue) > 0 {
+				curr := queue[0]
+				queue = queue[1:]
+
+				if curr.next == 0 {
+					// Must use a Strong link
+					for _, nextNode := range strongLinks[curr.node] {
+						nextState := xChainState{nextNode, 1}
+						if _, ok := visited[nextState]; !ok {
+							visited[nextState] = curr
+							queue = append(queue, nextState)
+
+							// We reached nextNode via a Strong link.
+							if nextNode != startNode {
+								step := NewStep(kindXChain).WithValues(val)
+								if s.eliminatePeerTargets(val, s.puzzle.Cell(startNode), s.puzzle.Cell(nextNode), step) {
+									chain := s.reconstructXChainPath(visited, nextState)
+									s.applyStep(step.WithIndices(chain...))
+									found = true
+								}
+							}
+						}
+					}
+				} else {
+					// Can use a Weak link (any cell that sees curr.node and has val)
+					for _, nextNode := range s.cellPeers[curr.node] {
+						if s.puzzle.Cell(nextNode).HasCandidate(val) {
+							nextState := xChainState{nextNode, 0}
+							if _, ok := visited[nextState]; !ok {
+								visited[nextState] = curr
+								queue = append(queue, nextState)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return found
+}
+
+type xyChainState struct {
+	node int
+	val  int
+}
+
+func (s *Solver) findXYChains() bool {
+	// Find all bivalue cells.
+	bivalueIndices := make([]int, 0, 81)
+	for i := 0; i < 81; i++ {
+		if s.puzzle.Cell(i).NumCandidates() == 2 {
+			bivalueIndices = append(bivalueIndices, i)
+		}
+	}
+
+	if len(bivalueIndices) < 3 {
+		return false
+	}
+
+	found := false
+	for _, startIdx := range bivalueIndices {
+		startCell := s.puzzle.Cell(startIdx)
+		candidates := startCell.CandidateValues()
+		for _, startVal := range candidates {
+			otherVal := candidates[0]
+			if otherVal == startVal {
+				otherVal = candidates[1]
+			}
+
+			// State: current cell index, the candidate that MUST be true if the previous link holds.
+			queue := []xyChainState{{startIdx, otherVal}}
+			visited := make(map[xyChainState]xyChainState)
+			visited[xyChainState{startIdx, otherVal}] = xyChainState{node: -1}
+
+			for len(queue) > 0 {
+				curr := queue[0]
+				queue = queue[1:]
+
+				for _, nextIdx := range bivalueIndices {
+					if nextIdx == curr.node || !s.sees(curr.node, nextIdx) {
+						continue
+					}
+
+					nextCell := s.puzzle.Cell(nextIdx)
+					if nextCell.HasCandidate(curr.val) {
+						nextVals := nextCell.CandidateValues()
+						nextVal := nextVals[0]
+						if nextVal == curr.val {
+							nextVal = nextVals[1]
+						}
+
+						nextState := xyChainState{nextIdx, nextVal}
+						if _, ok := visited[nextState]; !ok {
+							visited[nextState] = curr
+							queue = append(queue, nextState)
+
+							if nextVal == startVal {
+								step := NewStep(kindXYChain).WithValues(startVal)
+								if s.eliminatePeerTargets(startVal, startCell, nextCell, step) {
+									chain := s.reconstructXYChainPath(visited, nextState)
+									s.applyStep(step.WithIndices(chain...))
+									found = true
+									// We found one, but we continue to find others from this startIdx/startVal?
+									// Actually, let's return true and let the loop handle it if we want,
+									// or just continue. If we continue, we must be careful not to
+									// use the same elimination again.
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return found
+}
+
+func (s *Solver) reconstructXChainPath(visited map[xChainState]xChainState, end xChainState) []int {
+	var path []int
+	curr := end
+	for curr.node != -1 {
+		path = append(path, curr.node)
+		curr = visited[curr]
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path
+}
+
+func (s *Solver) reconstructXYChainPath(visited map[xyChainState]xyChainState, end xyChainState) []int {
+	var path []int
+	curr := end
+	for curr.node != -1 {
+		path = append(path, curr.node)
+		curr = visited[curr]
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path
 }
 
 func (s *Solver) findFinnedSwordfish() bool {

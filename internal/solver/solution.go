@@ -71,7 +71,8 @@ func (step *SolutionStep) IsSingle() bool {
 	return step.technique == kindFullHouse ||
 		step.technique == kindNakedSingle ||
 		step.technique == kindHiddenSingle ||
-		step.technique == kindBruteForce
+		step.technique == kindBruteForce ||
+		((step.technique == kindAIC || step.technique == kindNiceLoop) && len(step.values) == 1 && len(step.indices) == 1 && len(step.deletedCandidates) == 0)
 }
 
 func (step *SolutionStep) DeleteCandidate(index, value int) {

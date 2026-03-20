@@ -76,7 +76,7 @@ func TestRemotePair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	solver := NewSolver(p, nil)
+	solver := NewSolver(p, &Options{EnableDebug: true})
 	solver.processInitialValues()
 
 	found := solver.findRemotePairs()
@@ -137,6 +137,64 @@ func TestEmptyRectangle(t *testing.T) {
 	// Elimination: 986 => digit 9 at r8c6 (index 68)
 	if p.Cell(68).HasCandidate(9) {
 		t.Error("Candidate 9 should be eliminated from r8c6")
+	}
+}
+
+func TestXChain(t *testing.T) {
+	// Example from reglib-1.3.txt
+	s := ":0701:7:3.4+52..8...6.+9.....5..7.3.....68+9.2+3...+734....6+315+27...1.+9+6......9.+4..6.+6.8217..5::742::5"
+	p, err := puzzle.FromHodokuString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	solver := NewSolver(p, &Options{EnableDebug: true})
+	solver.processInitialValues()
+
+	found := solver.findXChains()
+	if !found {
+		t.Error("X-Chain should be found")
+	}
+
+	// Elimination: 742 => digit 7 at r4c2
+	idx := (4-1)*9 + (2-1)
+	if p.Cell(idx).HasCandidate(7) {
+		t.Error("Candidate 7 should be eliminated from r4c2")
+	}
+}
+
+func TestXYChain(t *testing.T) {
+	// Example from reglib-1.3.txt
+	s := ":0702:7:76+2+8+1+3+59+4...+7+6+9+1+2+8.+9.42536+7.+765+9+82.+39..1+32......+67+4+8.9..+7+9+5643+1.49+38+1..2.1.+2+47+9+8.::758 787::19"
+	p, err := puzzle.FromHodokuString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	solver := NewSolver(p, nil)
+	solver.processInitialValues()
+
+	found := false
+	for {
+		if !solver.findXYChains() {
+			break
+		}
+		found = true
+		// Check if we already eliminated what we wanted
+		idx1 := (5-1)*9 + (8-1)
+		idx2 := (8-1)*9 + (7-1)
+		if !p.Cell(idx1).HasCandidate(7) && !p.Cell(idx2).HasCandidate(7) {
+			break
+		}
+	}
+
+	if !found {
+		t.Error("XY-Chain should be found")
+	}
+
+	// Eliminations: 758 and 787
+	idx1 := (5-1)*9 + (8-1)
+	idx2 := (8-1)*9 + (7-1)
+	if p.Cell(idx1).HasCandidate(7) || p.Cell(idx2).HasCandidate(7) {
+		t.Error("Candidate 7 should be eliminated from r5c8 and r8c7")
 	}
 }
 
