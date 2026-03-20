@@ -85,11 +85,19 @@ func main() {
 	if p.IsSolved() {
 		fmt.Printf("%s (%v)\n\n",
 			color.HiGreenString("✓ Solved successfully"), s.SolveTime)
+		if s.IsNonUnique {
+			fmt.Printf("%s\n\n", color.HiYellowString("Warning: Puzzle is non-unique (has multiple solutions)"))
+		}
 		color.HiBlue("Solution:")
 		p.Print()
 	} else {
-		fmt.Printf("%s (%v)\n\n",
-			color.HiRedString("✗ Failed to solve"), s.SolveTime)
+		if s.IsUnsolvable {
+			fmt.Printf("%s (%v)\n\n",
+				color.HiRedString("✗ Puzzle is unsolvable"), s.SolveTime)
+		} else {
+			fmt.Printf("%s (%v)\n\n",
+				color.HiRedString("✗ Failed to solve"), s.SolveTime)
+		}
 		color.HiBlue("Partial Solution:")
 		p.PrintCandidateGrid()
 		fmt.Println()

@@ -29,6 +29,11 @@ type (
 
 		// stats
 		SolveTime time.Duration
+
+		IsNonUnique  bool
+		IsUnsolvable bool
+
+		cellPeers [81][]int
 	}
 
 	// Options that control the behavior of the solver.
@@ -91,6 +96,22 @@ func NewSolver(p *puzzle.Puzzle, opts *Options) *Solver {
 		}
 	}
 
+	// Precompute cell peers.
+	for i := range 81 {
+		r, c := i/9, i%9
+		rb, cb := r/3*3, c/3*3
+		seen := make(map[int]bool)
+		for j := range 9 {
+			seen[r*9+j] = true
+			seen[j*9+c] = true
+			seen[(rb+j/3)*9+(cb+j%3)] = true
+		}
+		delete(seen, i)
+		for peerIdx := range seen {
+			s.cellPeers[i] = append(s.cellPeers[i], peerIdx)
+		}
+	}
+
 	return s
 }
 
@@ -116,6 +137,19 @@ func (s *Solver) Solve() {
 
 	s.processInitialValues()
 
+	// Detect non-uniqueness or unsolvability early as requested by spec 3.2.
+	dl := NewDancingLinks(s.puzzle)
+	solutions := dl.CountSolutions(2)
+	if solutions == 0 {
+		s.IsUnsolvable = true
+		s.printProgress("Puzzle has no solutions")
+		return
+	}
+	if solutions > 1 {
+		s.IsNonUnique = true
+		s.printProgress("Multiple solutions detected (puzzle is not unique)")
+	}
+
 SolverLoop:
 	for !s.puzzle.IsSolved() {
 		// Check techniques in roughly the order that a human solver would apply
@@ -139,10 +173,6 @@ SolverLoop:
 
 	// If we didn't get a complete solution, use a "Dancing Links" brute-force
 	// search as a last resort to solve the remaining cells.
-	// Note that we could end up here because the puzzle has multiple solutions,
-	// but it would be expensive to test every possible path to ensure that the
-	// solution is unique. We just assume that the puzzle has only one solution,
-	// and always use the first solution found.
 	if !s.puzzle.IsSolved() && s.EnableBruteForce {
 		s.printChecking("Brute Force")
 		s.findBruteForce()
@@ -151,6 +181,29 @@ SolverLoop:
 
 func (s *Solver) solveTimer(start time.Time) {
 	s.SolveTime = time.Since(start)
+}
+
+func (s *Solver) sees(i, j int) bool {
+	if i == j {
+		return false
+	}
+	ri, ci := i/9, i%9
+	rj, cj := j/9, j%9
+	return ri == rj || ci == cj || ri/3 == rj/3 && ci/3 == cj/3
+}
+
+func (s *Solver) commonPeers(i, j int) []int {
+	seenByI := make(map[int]bool)
+	for _, p := range s.cellPeers[i] {
+		seenByI[p] = true
+	}
+	var common []int
+	for _, p := range s.cellPeers[j] {
+		if seenByI[p] {
+			common = append(common, p)
+		}
+	}
+	return common
 }
 
 func (s *Solver) PlaceValue(idx int, val int) {

@@ -125,7 +125,7 @@ func FromHodokuString(s string) (*Puzzle, error) {
 	// candidates := parts[2]
 	givensStr := parts[3]
 	deletedStr := parts[4]
-	// eliminations := parts[5]
+	// elimStr := parts[5]
 	// placements := parts[6]
 	// extra := parts[7]
 
@@ -180,6 +180,10 @@ func FromHodokuString(s string) (*Puzzle, error) {
 			p.Get(row, col).RemoveCandidate(val)
 		}
 	}
+
+	// Parse eliminations
+	// We don't apply these here, as they are intended to be verified by the solver.
+	// if elimStr != "" { ... }
 
 	return p, nil
 }

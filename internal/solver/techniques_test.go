@@ -69,7 +69,197 @@ func TestFindSkyscraper(t *testing.T) {
 	}
 }
 
-func TestFindTwoStringKite(t *testing.T) {
+func TestRemotePair(t *testing.T) {
+	// Example from reglib-1.3.txt
+	s := ":0703:58:..+1.+4+9+2+636+3.21+7+9+4.942+63..+7.2634.+17.98.+4.+9..2...+9.+6+2.+34..7..4.9.+4..9+7631..+9+6.+2.+4.7::577 579 594 596 877 879 894 896::7"
+	p, err := puzzle.FromHodokuString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	solver := NewSolver(p, nil)
+	solver.processInitialValues()
+
+	found := solver.findRemotePairs()
+	if !found {
+		t.Error("Remote Pair should be found")
+	}
+
+	// The Hodoku string says it should eliminate candidate 5 and 8 from 
+	// several cells.
+	// Eliminations: 577 579 594 596 877 879 894 896
+	// Note: 577 means value 5 at r7c7 (r6c6). Wait, Hodoku indices are 1-based digit,row,col.
+	// "577" => value 5 at r7c7.
+	// "877" => value 8 at r7c7.
+	
+	// r7c7 is index (7-1)*9 + (7-1) = 6*9+6 = 60.
+	if p.Cell(60).HasCandidate(5) || p.Cell(60).HasCandidate(8) {
+		t.Error("Candidate 5 or 8 should be eliminated from r7c7")
+	}
+}
+
+func TestWWing(t *testing.T) {
+	// W-Wing example from reglib-1.3.txt
+	s := ":0803:14:6..+9+5..7...+9.2.....58.+31...+1+64+3+8+9+7+52...1+7+59+46597+24+6..892+54+1+76+8+3...5+6+2.....68+93...::417 427 437 489 499::"
+	p, err := puzzle.FromHodokuString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	solver := NewSolver(p, &Options{EnableDebug: true})
+	solver.processInitialValues()
+
+	found := solver.findWWing()
+	if !found {
+		t.Error("W-Wing should be found")
+	}
+
+	// Eliminations: 417 427 437 489 499
+	// 417 => digit 4 at r1c7 (index 6)
+	if p.Cell(6).HasCandidate(4) {
+		t.Error("Candidate 4 should be eliminated from r1c7")
+	}
+}
+
+func TestEmptyRectangle(t *testing.T) {
+	// Empty Rectangle example from reglib-1.3.txt
+	s := ":0402:9:7+2+4+956+1381+6842+3+5+9+7+9+3+5+7+1+8+6+2+45..3..+8+1..4..8+17+5..+81.+7.24..+13....+7+2...1...+85.5...7.6+1::986::"
+	p, err := puzzle.FromHodokuString(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	solver := NewSolver(p, &Options{EnableDebug: true})
+	solver.processInitialValues()
+
+	found := solver.findEmptyRectangle()
+	if !found {
+		t.Error("Empty Rectangle should be found")
+	}
+
+	// Elimination: 986 => digit 9 at r8c6 (index 68)
+	if p.Cell(68).HasCandidate(9) {
+		t.Error("Candidate 9 should be eliminated from r8c6")
+	}
+}
+
+func TestUniqueRectangleType2(t *testing.T) {
+	p := puzzle.NewPuzzle()
+	s := NewSolver(p, nil)
+
+	setCandidate := func(r, c, v int) {
+		p.Get(r, c).Candidates.Add(v)
+		s.rows[r].Unsolved[v].Add(c)
+		s.columns[c].Unsolved[v].Add(r)
+		_, boxLoc := getBoxLoc(r, c)
+		s.boxes[p.Get(r, c).Box()].Unsolved[v].Add(boxLoc)
+	}
+
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			p.Get(r, c).Candidates.Clear()
+			for v := 1; v <= 9; v++ {
+				s.rows[r].Unsolved[v].Clear()
+				s.columns[c].Unsolved[v].Clear()
+				s.boxes[p.Get(r, c).Box()].Unsolved[v].Clear()
+			}
+		}
+	}
+
+	// UR Type 2 Setup: {1, 2} with extra 3
+	// Corners: (0,0), (0,3), (1,0), (1,3)
+	// (0,0) and (1,0) are in Box 0.
+	// (0,3) and (1,3) are in Box 1.
+	
+	// Bivalue cells
+	setCandidate(0, 0, 1); setCandidate(0, 0, 2)
+	setCandidate(0, 3, 1); setCandidate(0, 3, 2)
+	
+	// Extra cells (sharing same row or column)
+	// Let's put them in column 0: (0,0) and (1,0)? No, those are not corners.
+	// Corners are (0,0), (0,3), (1,0), (1,3).
+	// Extra cells must be (0,0) and (0,3) [same row] or (0,0) and (1,0) [same col].
+	
+	// Reset and set correctly
+	for r := 0; r < 2; r++ {
+		for c := 0; c < 4; c++ {
+			p.Get(r, c).Candidates.Clear()
+		}
+	}
+	
+	// Bivalue cells: (1,0) and (1,3)
+	setCandidate(1, 0, 1); setCandidate(1, 0, 2)
+	setCandidate(1, 3, 1); setCandidate(1, 3, 2)
+	
+	// Extra cells: (0,0) and (0,3)
+	setCandidate(0, 0, 1); setCandidate(0, 0, 2); setCandidate(0, 0, 3)
+	setCandidate(0, 3, 1); setCandidate(0, 3, 2); setCandidate(0, 3, 3)
+	
+	// Target cell: must see (0,0) and (0,3)
+	// (0,1) is in the same row as both.
+	setCandidate(0, 1, 3)
+
+	found := s.findUniqueRectangleType2()
+	if !found {
+		t.Error("Unique Rectangle Type 2 should be found")
+	}
+
+	if p.Get(0, 1).HasCandidate(3) {
+		t.Error("Candidate 3 should be eliminated from (0,1)")
+	}
+	}
+
+	func TestAvoidableRectangle(t *testing.T) {
+	p := puzzle.NewPuzzle()
+	s := NewSolver(p, nil)
+
+	setCandidate := func(r, c, v int) {
+		p.Get(r, c).Candidates.Add(v)
+		s.rows[r].Unsolved[v].Add(c)
+		s.columns[c].Unsolved[v].Add(r)
+		_, boxLoc := getBoxLoc(r, c)
+		s.boxes[p.Get(r, c).Box()].Unsolved[v].Add(boxLoc)
+	}
+
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			p.Get(r, c).Candidates.Clear()
+			for v := 1; v <= 9; v++ {
+				s.rows[r].Unsolved[v].Clear()
+				s.columns[c].Unsolved[v].Clear()
+				s.boxes[p.Get(r, c).Box()].Unsolved[v].Clear()
+			}
+		}
+	}
+
+	// AR Type 1 Setup: {1, 2}
+	// Corners: (0,0), (0,3), (1,0), (1,3)
+	// (0,0) and (1,0) in Box 0.
+	// (0,3) and (1,3) in Box 1.
+	
+	// Solved corners (non-givens)
+	// Corner (0,0) = 1
+	p.Get(0, 0).PlaceValue(1)
+	// Corner (0,3) = 2
+	p.Get(0, 3).PlaceValue(2)
+	// Corner (1,0) = 2
+	p.Get(1, 0).PlaceValue(2)
+	
+	// Unsolved corner (1,3) has {1, 2, 3}
+	// If (1,3) is 1, we have a deadly pattern {1, 2, 2, 1}.
+	setCandidate(1, 3, 1)
+	setCandidate(1, 3, 2)
+	setCandidate(1, 3, 3)
+
+	found := s.findAvoidableRectangles()
+	if !found {
+		t.Error("Avoidable Rectangle Type 1 should be found")
+	}
+
+	if p.Get(1, 3).HasCandidate(1) {
+		t.Error("Candidate 1 should be eliminated from (1,3)")
+	}
+}
+
+	func TestFindTwoStringKite(t *testing.T) {
+
 	p := puzzle.NewPuzzle()
 	s := NewSolver(p, nil)
 	val := 1

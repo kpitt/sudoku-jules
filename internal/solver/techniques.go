@@ -79,17 +79,17 @@ func (s *Solver) initTechniques() {
 		{"X-Wing", s.findXWings},
 		{"Swordfish", s.findSwordfish},
 		{"Jellyfish", s.findJellyfish},
-		{"Remote Pair", nil},
-		{"BUG+1", nil},
+		{"Remote Pair", s.findRemotePairs},
+		{"BUG+1", s.findBUG},
 		{"Skyscraper", s.findSkyscraper},
 		{"2-String Kite", s.findTwoStringKite},
-		{"Empty Rectangle", nil},
-		{"W-Wing", nil},
+		{"Empty Rectangle", s.findEmptyRectangle},
+		{"W-Wing", s.findWWing},
 		{"XY-Wing", s.findXYWings},
 		{"XYZ-Wing", s.findXYZWings},
 		{"Avoidable Rectangle", s.findAvoidableRectangles},
 		{"Unique Rectangle Type 1", s.findUniqueRectangleType1},
-		{"Unique Rectangle Type 2", nil},
+		{"Unique Rectangle Type 2", s.findUniqueRectangleType2},
 		{"Unique Rectangle Type 3", nil},
 		{"Unique Rectangle Type 4", nil},
 		{"Hidden Rectangle", nil},
@@ -489,6 +489,326 @@ func (s *Solver) findNakedQuadruples() (found bool) {
 	return s.findNakedSubsets(4, kindNakedQuadruple)
 }
 
+func (s *Solver) findRemotePairs() (found bool) {
+	// 1. Group bivalue cells by their candidate pairs.
+	groups := make(map[bitset.BitSet16][]int)
+	for i := range 81 {
+		cell := s.puzzle.Cell(i)
+		if cell.NumCandidates() == 2 {
+			groups[cell.Candidates] = append(groups[cell.Candidates], i)
+		}
+	}
+
+	// 2. For each group of at least 4 cells:
+	for candidates, indices := range groups {
+		if len(indices) < 4 {
+			continue
+		}
+
+		// 3. Find connected components and their bicoloring.
+		visited := make(map[int]bool)
+		for _, startIdx := range indices {
+			if visited[startIdx] {
+				continue
+			}
+
+			// Start a new component with BFS
+			colors := make(map[int]int) // index -> color (0 or 1)
+			queue := []int{startIdx}
+			colors[startIdx] = 0
+			visited[startIdx] = true
+
+			component := []int{startIdx}
+			head := 0
+			for head < len(queue) {
+				u := queue[head]
+				head++
+
+				uColor := colors[u]
+				// Neighbors are other indices in this group that see u
+				for _, vIdx := range indices {
+					if u == vIdx {
+						continue
+					}
+					if s.sees(u, vIdx) {
+						if vColor, ok := colors[vIdx]; ok {
+							if vColor == uColor {
+								// Odd cycle!
+							}
+						} else {
+							colors[vIdx] = 1 - uColor
+							visited[vIdx] = true
+							queue = append(queue, vIdx)
+							component = append(component, vIdx)
+						}
+					}
+				}
+			}
+
+			if len(component) < 4 {
+				continue
+			}
+
+			// 4. For each pair of nodes in the component with different colors:
+			// Any cell seeing both can't have candidates X or Y.
+			vals := candidates.Values()
+			x, y := vals[0], vals[1]
+
+			for i := 0; i < len(component); i++ {
+				for j := i + 1; j < len(component); j++ {
+					uIdx, vIdx := component[i], component[j]
+					if colors[uIdx] == colors[vIdx] {
+						continue
+					}
+
+					// Different colors -> different values (one is X, other is Y)
+					commonPeers := s.commonPeers(uIdx, vIdx)
+					step := NewStep(kindRemotePair).
+						WithValues(x, y).
+						WithIndices(uIdx, vIdx)
+
+					for _, peerIdx := range commonPeers {
+						peerCell := s.puzzle.Cell(peerIdx)
+						if peerCell.HasCandidate(x) {
+							step.DeleteCandidate(peerIdx, x)
+						}
+						if peerCell.HasCandidate(y) {
+							step.DeleteCandidate(peerIdx, y)
+						}
+					}
+
+					if len(step.deletedCandidates) > 0 {
+						s.applyStep(step)
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *Solver) findBUG() (found bool) {
+	// BUG + 1 is a state where every unsolved cell has 2 candidates except one,
+	// which has 3 candidates.
+	var bugCell *puzzle.Cell
+	nonBivalueCount := 0
+	for i := range 81 {
+		cell := s.puzzle.Cell(i)
+		if cell.IsSolved() {
+			continue
+		}
+		num := cell.NumCandidates()
+		if num == 2 {
+			continue
+		}
+		nonBivalueCount++
+		if num == 3 && bugCell == nil {
+			bugCell = cell
+			continue
+		}
+	}
+
+	if nonBivalueCount != 1 || bugCell == nil {
+		return false
+	}
+
+	// In the BUG cell, the value to place is the one that appears 3 times in
+	// its row, column, and box houses.
+	candidates := bugCell.CandidateValues()
+	for _, v := range candidates {
+		if s.rows[bugCell.Row].NumLocations(v) == 3 &&
+			s.columns[bugCell.Col].NumLocations(v) == 3 &&
+			s.boxes[bugCell.Box()].NumLocations(v) == 3 {
+
+			step := NewStep(kindBUG).
+				WithPlacedValue(bugCell.Index(), v)
+			s.applyStep(step)
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *Solver) findWWing() (found bool) {
+	// A W-Wing requires two bivalue cells with the same candidates {x, y}
+	// and a strong link on one of those candidates {x or y} in a separate house.
+	// If the cells in the strong link each see one of the bivalue cells,
+	// then the OTHER candidate can be eliminated from common peers of the
+	// bivalue cells.
+
+	// 1. Group bivalue cells by their candidate pairs.
+	groups := make(map[bitset.BitSet16][]int)
+	for i := range 81 {
+		cell := s.puzzle.Cell(i)
+		if cell.NumCandidates() == 2 {
+			groups[cell.Candidates] = append(groups[cell.Candidates], i)
+		}
+	}
+
+	for candidates, indices := range groups {
+		if len(indices) < 2 {
+			continue
+		}
+
+		vals := candidates.Values()
+		for _, x := range vals {
+			y := vals[0]
+			if y == x {
+				y = vals[1]
+			}
+
+			// We look for a strong link on X.
+			// 2. Iterate over all houses to find strong links for X.
+			for _, h := range s.houses {
+				if h.NumLocations(x) == 2 {
+					locs := h.Locations(x).Values()
+					s1 := h.Cells[locs[0]].Index()
+					s2 := h.Cells[locs[1]].Index()
+
+					// 3. For each pair of bivalue cells:
+					for i := 0; i < len(indices); i++ {
+						for j := i + 1; j < len(indices); j++ {
+							w1, w2 := indices[i], indices[j]
+
+							// W1 sees s1 and W2 sees s2 (or vice versa)
+							// AND w1, w2 must NOT be s1 or s2.
+							if (s.sees(w1, s1) && s.sees(w2, s2)) ||
+								(s.sees(w1, s2) && s.sees(w2, s1)) {
+
+								common := s.commonPeers(w1, w2)
+								step := NewStep(kindWWing).
+									WithValues(x, y).
+									WithIndices(w1, w2, s1, s2)
+
+								for _, peerIdx := range common {
+									if s.puzzle.Cell(peerIdx).HasCandidate(y) {
+										step.DeleteCandidate(peerIdx, y)
+									}
+								}
+
+								if len(step.deletedCandidates) > 0 {
+									s.applyStep(step)
+									return true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *Solver) findEmptyRectangle() (found bool) {
+	// Empty Rectangle uses a box where a candidate is restricted to a subset of
+	// cells that "pincer" onto a single row and column within that box.
+	// If this box-structure is linked to a strong link for the same candidate
+	// in a different house, an elimination can be made.
+
+	for x := 1; x <= 9; x++ {
+		for b := 0; b < 9; b++ {
+			box := s.boxes[b]
+			num := box.NumLocations(x)
+			if num < 2 {
+				continue
+			}
+
+			// 1. Identify "pincer" at row R and column C in box B
+			// All X's in box B must be in row R or column C.
+			for rInBox := 0; rInBox < 3; rInBox++ {
+				for cInBox := 0; cInBox < 3; cInBox++ {
+					r := (b/3)*3 + rInBox
+					c := (b%3)*3 + cInBox
+
+					allIn := true
+					locs := box.Locations(x).Values()
+					for _, loc := range locs {
+						cellR := (b/3)*3 + loc/3
+						cellC := (b%3)*3 + loc%3
+						if cellR != r && cellC != c {
+							allIn = false
+							break
+						}
+					}
+					if !allIn {
+						continue
+					}
+
+					// 2. Look for a strong link on X that connects to this box.
+					// Case A: Row R' has a strong link for X at (R', C) and (R', C'').
+					// Then we can eliminate X from (R, C'').
+					for rPrime := 0; rPrime < 9; rPrime++ {
+						if rPrime == r {
+							continue
+						}
+						hRP := s.rows[rPrime]
+						if hRP.NumLocations(x) == 2 {
+							locsRP := hRP.Locations(x).Values()
+							c1, c2 := locsRP[0], locsRP[1]
+							var cDoublePrime int
+							if c1 == c {
+								cDoublePrime = c2
+							} else if c2 == c {
+								cDoublePrime = c1
+							} else {
+								continue
+							}
+
+							target := r*9 + cDoublePrime
+							if s.puzzle.Cell(target).HasCandidate(x) {
+								step := NewStep(kindEmptyRectangle).
+									WithValues(x).
+									WithIndices(r*9+c, rPrime*9+c, rPrime*9+cDoublePrime)
+								step.DeleteCandidate(target, x)
+								s.applyStep(step)
+								return true
+							}
+						}
+					}
+
+					// Case B: Column C' has a strong link for X at (C', R) and (C', R'').
+					// Then we can eliminate X from (C', R'').
+					for cPrime := 0; cPrime < 9; cPrime++ {
+						if cPrime == c {
+							continue
+						}
+						hCP := s.columns[cPrime]
+						if hCP.NumLocations(x) == 2 {
+							locsCP := hCP.Locations(x).Values()
+							r1, r2 := locsCP[0], locsCP[1]
+							var rDoublePrime int
+							if r1 == r {
+								rDoublePrime = r2
+							} else if r2 == r {
+								rDoublePrime = r1
+							} else {
+								continue
+							}
+
+							target := rDoublePrime*9 + c
+							if s.puzzle.Cell(target).HasCandidate(x) {
+								step := NewStep(kindEmptyRectangle).
+									WithValues(x).
+									WithIndices(r*9+c, r*9+cPrime, rDoublePrime*9+cPrime)
+								step.DeleteCandidate(target, x)
+								s.applyStep(step)
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 func (s *Solver) findXYWings() (found bool) {
 	// Collect a list of all cells with exactly 2 candidates.
 	var candidates []*puzzle.Cell
@@ -603,7 +923,76 @@ func (s *Solver) eliminateXYWingCells(z int, xCell, yCell *puzzle.Cell, step *So
 }
 
 func (s *Solver) findAvoidableRectangles() (found bool) {
-	// TODO: Implement "Avoidable Rectangle" technique
+	// Avoidable Rectangle Type 1:
+	// 4 cells forming a rectangle in 2 rows, 2 columns, and 2 boxes.
+	// 3 corners are solved (non-givens), 1 corner is unsolved.
+	// If the solved corners form an X-Y, Y-X pattern, the unsolved corner
+	// cannot take the value that would complete the deadly pattern.
+
+	for r1 := 0; r1 < 9; r1++ {
+		for r2 := r1 + 1; r2 < 9; r2++ {
+			for c1 := 0; c1 < 9; c1++ {
+				for c2 := c1 + 1; c2 < 9; c2++ {
+					cells := [4]*puzzle.Cell{
+						s.puzzle.Get(r1, c1), s.puzzle.Get(r1, c2),
+						s.puzzle.Get(r2, c1), s.puzzle.Get(r2, c2),
+					}
+
+					// Must be in exactly 2 boxes
+					boxes := make(map[int]bool)
+					for _, c := range cells {
+						boxes[c.Box()] = true
+					}
+					if len(boxes) != 2 {
+						continue
+					}
+
+					// Check for Type 1: 3 solved non-givens, 1 unsolved.
+					solvedCount := 0
+					unsolvedIdx := -1
+					for i, c := range cells {
+						if c.IsSolved() {
+							if c.IsGiven {
+								solvedCount = -1 // Cannot use givens
+								break
+							}
+							solvedCount++
+						} else {
+							if unsolvedIdx != -1 {
+								solvedCount = -1 // More than one unsolved
+								break
+							}
+							unsolvedIdx = i
+						}
+					}
+
+					if solvedCount == 3 {
+						unsolved := cells[unsolvedIdx]
+						oppositeIdx := unsolvedIdx ^ 3
+						rowAdjIdx := unsolvedIdx ^ 1
+						colAdjIdx := unsolvedIdx ^ 2
+
+						X := cells[oppositeIdx].Value()
+						Y := cells[rowAdjIdx].Value()
+
+						if cells[colAdjIdx].Value() == Y && X != Y {
+							// Potential Avoidable Rectangle Type 1.
+							// Unsolved cell cannot be X.
+							if unsolved.HasCandidate(X) {
+								step := NewStep(kindAvoidableRectangle).
+									WithValues(X, Y).
+									WithIndices(cells[0].Index(), cells[1].Index(), cells[2].Index(), cells[3].Index())
+								step.DeleteCandidate(unsolved.Index(), X)
+								s.applyStep(step)
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return false
 }
 
@@ -1165,6 +1554,101 @@ func (s *Solver) checkUniqueRectangleForCell(base *puzzle.Cell) (found bool) {
 		}
 	}
 
+	return false
+}
+
+func (s *Solver) findUniqueRectangleType2() (found bool) {
+	// Find all 4-cell rectangles in 2 rows, 2 columns, and 2 boxes.
+	for r1 := 0; r1 < 9; r1++ {
+		for r2 := r1 + 1; r2 < 9; r2++ {
+			for c1 := 0; c1 < 9; c1++ {
+				for c2 := c1 + 1; c2 < 9; c2++ {
+					// Corners: (r1,c1), (r1,c2), (r2,c1), (r2,c2)
+					cells := [4]*puzzle.Cell{
+						s.puzzle.Get(r1, c1), s.puzzle.Get(r1, c2),
+						s.puzzle.Get(r2, c1), s.puzzle.Get(r2, c2),
+					}
+
+					// All must be unsolved
+					allUnsolved := true
+					for _, c := range cells {
+						if c.IsSolved() {
+							allUnsolved = false
+							break
+						}
+					}
+					if !allUnsolved {
+						continue
+					}
+
+					// Must be in exactly 2 boxes
+					boxes := make(map[int]bool)
+					for _, c := range cells {
+						boxes[c.Box()] = true
+					}
+					if len(boxes) != 2 {
+						continue
+					}
+
+					// Find candidate pairs {x, y} common to all 4 cells.
+					// For UR Type 2, two cells must have exactly {x, y}
+					// and the other two cells must have {x, y, z}.
+					common := cells[0].Candidates.
+						Intersection(cells[1].Candidates).
+						Intersection(cells[2].Candidates).
+						Intersection(cells[3].Candidates)
+
+					if common.Size() < 2 {
+						continue
+					}
+
+					// Try each pair of candidates in common
+					vals := common.Values()
+					for i := 0; i < len(vals); i++ {
+						for j := i + 1; j < len(vals); j++ {
+							x, y := vals[i], vals[j]
+							xy := bitset.FromValues16(x, y)
+
+							var bivalueCells, extraCells []*puzzle.Cell
+							for _, c := range cells {
+								if c.Candidates.Equal(xy) {
+									bivalueCells = append(bivalueCells, c)
+								} else {
+									extraCells = append(extraCells, c)
+								}
+							}
+
+							if len(bivalueCells) == 2 && len(extraCells) == 2 {
+								e1 := extraCells[0].Candidates.Difference(xy)
+								e2 := extraCells[1].Candidates.Difference(xy)
+
+								if e1.Size() == 1 && e1.Equal(e2) {
+									z := e1.Values()[0]
+
+									// Z can be eliminated from any cell that sees BOTH extraCells.
+									commonPeers := s.commonPeers(extraCells[0].Index(), extraCells[1].Index())
+									step := NewStep(kindUniqueRectangle2).
+										WithValues(x, y, z).
+										WithIndices(cells[0].Index(), cells[1].Index(), cells[2].Index(), cells[3].Index())
+
+									for _, pIdx := range commonPeers {
+										if s.puzzle.Cell(pIdx).HasCandidate(z) {
+											step.DeleteCandidate(pIdx, z)
+										}
+									}
+
+									if len(step.deletedCandidates) > 0 {
+										s.applyStep(step)
+										return true
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	return false
 }
 
