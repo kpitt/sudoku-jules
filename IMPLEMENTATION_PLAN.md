@@ -19,7 +19,7 @@ Expanding the deductive engine to cover standard advanced human-like strategies.
 ## Priority 4: Expert-Level Deductive Techniques (Unfair & Extreme)
 The "Ultra" goal of implementing advanced sets and complex chain logic to solve the most difficult puzzles.
 
-- [ ] **Finned/Sashimi Swordfish & Jellyfish**: Extend fish logic to complex variants. (Ref: specs/deductive-techniques.md 2.1)
+- [x] **Finned/Sashimi Swordfish & Jellyfish**: Extend fish logic to complex variants. (Ref: specs/deductive-techniques.md 2.1)
 - [ ] **Chains (X-Chain, XY-Chain)**: Implement robust search for single-candidate and bivalue chains. (Ref: specs/deductive-techniques.md 2.2)
 - [ ] **Nice Loops (Standard & Grouped)**: Implement closed-loop detection and inference. (Ref: specs/deductive-techniques.md 2.3)
 - [ ] **ALS (Almost Locked Sets)**: Implement ALS-XZ and ALS-XY-Wing. (Ref: specs/deductive-techniques.md 2.4)

@@ -94,8 +94,8 @@ func (s *Solver) initTechniques() {
 		{"Unique Rectangle Type 4", s.findUniqueRectangleType4},
 		{"Hidden Rectangle", s.findHiddenRectangle},
 		{"Finned X-Wing", s.findFinnedXWings},
-		{"Finned Swordfish", nil},
-		{"Finned Jellyfish", nil},
+		{"Finned Swordfish", s.findFinnedSwordfish},
+		{"Finned Jellyfish", s.findFinnedJellyfish},
 		{"Sue de Coq", nil},
 		{"Simple Coloring", nil},
 		{"Multi-Coloring", nil},
@@ -104,6 +104,213 @@ func (s *Solver) initTechniques() {
 		{"Brute Force", nil}, // custom check as last resort
 	}
 }
+
+func (s *Solver) findFinnedSwordfish() bool {
+	return s.findFinnedFishOfSize(3, kindFinnedSwordfish)
+}
+
+func (s *Solver) findFinnedJellyfish() bool {
+	return s.findFinnedFishOfSize(4, kindFinnedJellyfish)
+}
+
+func (s *Solver) findFinnedFishOfSize(fishSize int, fishKind techniqueKind) bool {
+	find := func(baseLines, coverLines []*House) bool {
+		return s.findFinnedFishInLines(fishSize, fishKind, baseLines, coverLines)
+	}
+	return find(s.rows, s.columns) || find(s.columns, s.rows)
+}
+
+func (s *Solver) findFinnedFishInLines(
+	fishSize int,
+	fishKind techniqueKind,
+	baseLines, coverLines []*House,
+) bool {
+	// A finned fish of size N has:
+	// - N base lines
+	// - N cover lines
+	// - All candidates in base lines are covered by cover lines, EXCEPT for
+	//   one or more "fin" cells.
+	// - All fin cells must be in the same box.
+	// - The box must also contain the intersection of one base line and one cover line.
+
+	for val := 1; val <= 9; val++ {
+		// Identify potential base lines: any line with at least 2 candidates.
+		var candidates []*House
+		for _, h := range baseLines {
+			if h.NumLocations(val) >= 2 {
+				candidates = append(candidates, h)
+			}
+		}
+
+		if len(candidates) < fishSize {
+			continue
+		}
+
+		// Try all combinations of fishSize base lines.
+		if s.checkFinnedFishCombinations(val, fishSize, fishKind, candidates, baseLines, coverLines) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Solver) checkFinnedFishCombinations(
+	val, fishSize int,
+	fishKind techniqueKind,
+	candidates []*House,
+	baseLines, coverLines []*House,
+) bool {
+	var check func(start int, current []*House) bool
+	check = func(start int, current []*House) bool {
+		if len(current) == fishSize {
+			return s.checkFinnedFishForBaseSet(val, fishKind, current, coverLines)
+		}
+
+		for i := start; i < len(candidates); i++ {
+			if check(i+1, append(current, candidates[i])) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return check(0, nil)
+}
+
+func (s *Solver) checkFinnedFishForBaseSet(
+	val int,
+	fishKind techniqueKind,
+	bases []*House,
+	coverLines []*House,
+) bool {
+	// 1. Collect all candidate locations across all base lines.
+	// These are indices into coverLines.
+	allLocs := bitset.BitSet16(0)
+	for _, b := range bases {
+		allLocs = bitset.Union(allLocs, b.Unsolved[val])
+	}
+
+	// 2. We need to find N cover lines that cover ALMOST all of these locations.
+	locs := allLocs.Values()
+	if len(locs) < len(bases) {
+		return false
+	}
+
+	// Try each subset of fishSize locations as the "cover set".
+	var checkCoverSet func(start int, currentLocs []int) bool
+	checkCoverSet = func(start int, currentLocs []int) bool {
+		if len(currentLocs) == len(bases) {
+			coverSet := bitset.FromValues16(currentLocs...)
+			fins := allLocs.Difference(coverSet)
+			if fins.Empty() {
+				return false // Perfect fish, skip here.
+			}
+
+			// 3. All fins must be in the same box.
+			boxIdx := -1
+			for _, finLoc := range fins.Values() {
+				// We need to find WHICH base line this fin is in.
+				for _, b := range bases {
+					if b.Unsolved[val].Contains(finLoc) {
+						cell := b.Cells[finLoc]
+						if boxIdx == -1 {
+							boxIdx = cell.Box()
+						} else if boxIdx != cell.Box() {
+							return false // Fins in multiple boxes
+						}
+					}
+				}
+			}
+
+			if boxIdx == -1 {
+				return false
+			}
+
+			// 4. The box must contain at least one of the "fish" cells that
+			// is on a cover line AND in one of the base lines.
+			// Actually, the box must contain the intersection of the "finned" base line
+			// and the cover line that it "would have" had.
+			// More generally, for Finned Fish, the eliminations are in the box
+			// and on the cover lines.
+			
+			// Let's identify the potential eliminations.
+			step := NewStep(fishKind).WithValues(val)
+			foundElim := false
+			box := s.boxes[boxIdx]
+			
+			// For each cover line in our cover set:
+			for _, cIdx := range currentLocs {
+				cover := coverLines[cIdx]
+				
+				// Candidates in this cover line, in this box, that are NOT in any base line.
+				for _, cell := range box.Cells {
+					// Is this cell on the cover line?
+					onCover := false
+					if cover.Kind == kindRow && cell.Row == cover.Index {
+						onCover = true
+					} else if cover.Kind == kindColumn && cell.Col == cover.Index {
+						onCover = true
+					}
+					
+					if !onCover {
+						continue
+					}
+					
+					// Is it in a base line?
+					inBase := false
+					for _, b := range bases {
+						if b.Kind == kindRow && cell.Row == b.Index {
+							inBase = true
+							break
+						} else if b.Kind == kindColumn && cell.Col == b.Index {
+							inBase = true
+							break
+						}
+					}
+					
+					if inBase {
+						continue
+					}
+					
+					if cell.HasCandidate(val) {
+						step.DeleteCandidate(cell.Index(), val)
+						foundElim = true
+					}
+				}
+			}
+
+			if foundElim {
+				covers := transformSlice(currentLocs, func(idx int) *House {
+					return coverLines[idx]
+				})
+				// Collect all fish/fin indices for highlighting.
+				indices := bitset.BitSet16(0)
+				for _, b := range bases {
+					for _, l := range b.Unsolved[val].Values() {
+						indices.Add(b.Cells[l].Index())
+					}
+				}
+
+				s.applyStep(step.
+					WithBases(bases...).
+					WithCovers(covers...).
+					WithIndices(indices.Values()...))
+				return true
+			}
+			return false
+		}
+
+		for i := start; i < len(locs); i++ {
+			if checkCoverSet(i+1, append(currentLocs, locs[i])) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return checkCoverSet(0, nil)
+}
+
 
 func (s *Solver) findFullHouse() bool {
 	for _, h := range s.houses {
