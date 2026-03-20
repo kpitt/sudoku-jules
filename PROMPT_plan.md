@@ -1,9 +1,10 @@
-0a. Study `specs/*` with up to 20 parallel `generalist` subagents to learn the application specifications.
+0a. Study `specs/*` using parallel subagents to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.md (if present) to understand the plan so far.
-0c. Study `internal/*` with up to 20 parallel `codebase_investigator` subagents to understand shared utilities & components.
+0c. Study `internal/*` using parallel subagents to understand shared utilities & components.
 0d. For reference, the application source code is in `cmd/*` and library package source code is in `internal/*`.
 
-1. Study @IMPLEMENTATION_PLAN.md (if present; it may be incorrect) and use up to 50 `codebase_investigator` subagents to study existing source code in `cmd/*` and `internal/*` and compare it against `specs/*`. Use a `generalist` subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.md as a bullet point list sorted in priority of items yet to be implemented. Ultrathink. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns. Study @IMPLEMENTATION_PLAN.md to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
+1. Study @IMPLEMENTATION_PLAN.md (if present; it may be incorrect) and use subagents to study existing source code in `cmd/*` and `internal/*` and compare it against `specs/*`. Use a single subagent to analyze findings, prioritize tasks, and create/update @IMPLEMENTATION_PLAN.md as a bullet point list sorted in priority of items yet to be implemented. Ultrathink. Consider searching for TODO, minimal implementations, placeholders, skipped/flaky tests, and inconsistent patterns. Study @IMPLEMENTATION_PLAN.md to determine starting point for research and keep it up to date with items considered complete/incomplete using subagents.
+2. Tasks in @IMPLEMENTATION_PLAN.md should include references to specific requirements in the `specs/*.md` files. If there is no appropriate requirement to connect to a task, then update the specs to add the requirement.
 
 IMPORTANT: Plan only. Do NOT implement anything. Do NOT assume functionality is missing; confirm with code search first. Treat `internal/*` as the project's standard library for shared utilities and components. Prefer consolidated, idiomatic implementations there over ad-hoc copies. Use appropriate names for `internal/*` subpackages, but prefer extending an existing subpackage over creating a new subpackage.
 
