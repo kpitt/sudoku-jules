@@ -91,6 +91,9 @@ func (s *Solver) FormatStep(step *SolutionStep) string {
 
 func (s *Solver) getStepDescription(step *SolutionStep) string {
 	switch step.technique {
+	case kindFullHouse:
+		return step.formatFullHouse()
+
 	case kindNakedSingle:
 		return step.formatPlacedValue()
 
@@ -136,12 +139,27 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 
 	case kindSkyscraper, kindTwoStringKite:
 		return step.formatSkyscraperOrKite()
+
 	case kindEmptyRectangle:
-		// TODO: not implemented yet
-		break
-	case kindSimpleColoring:
-		// TODO: not implemented yet
-		break
+		return step.formatEmptyRectangle()
+
+	case kindRemotePair:
+		return step.formatRemotePair()
+
+	case kindWWing:
+		return step.formatWWing()
+
+	case kindBUG:
+		return step.formatBUG()
+
+	case kindXChain, kindXYChain:
+		return step.formatChain()
+
+	case kindNiceLoop, kindAIC:
+		return step.formatAIC()
+
+	case kindALSXZ, kindALSXYWing:
+		return step.formatALS()
 
 	case kindBruteForce:
 		return step.formatPlacedValue()
@@ -162,6 +180,11 @@ func (s *Solver) formatNamedStep(step *SolutionStep, desc string) string {
 		return name
 	}
 	return fmt.Sprintf("%s: %s", name, desc)
+}
+
+func (step *SolutionStep) formatFullHouse() string {
+	return fmt.Sprintf("%d in %s => %s",
+		step.values[0], formatHouse(step.house), step.formatPlacedValue())
 }
 
 func (step *SolutionStep) formatHiddenSingle() string {
@@ -224,6 +247,47 @@ func (step *SolutionStep) formatSkyscraperOrKite() string {
 	// in indices 2 and 3.
 	return step.formatElimination("%d in %s (connected by %s)", step.values[0],
 		step.formatIndexRange(0, 1), step.formatIndexRange(2, 3))
+}
+
+func (step *SolutionStep) formatEmptyRectangle() string {
+	// indices[0] is the pincer in the box, indices[1,2] are the strong link.
+	return step.formatElimination("%d in box with strong link %s-%s", step.values[0],
+		puzzle.FormatCell(step.indices[1]), puzzle.FormatCell(step.indices[2]))
+}
+
+func (step *SolutionStep) formatRemotePair() string {
+	return step.formatElimination("%s in %s",
+		step.formatValuesList(), step.formatIndices())
+}
+
+func (step *SolutionStep) formatWWing() string {
+	// indices[0,1] are the bivalue cells, indices[2,3] are the strong link.
+	return step.formatElimination("%s in %s (connected by %d in %s-%s)",
+		step.formatValuesWing(), step.formatIndexRange(0, 1),
+		step.values[0], puzzle.FormatCell(step.indices[2]), puzzle.FormatCell(step.indices[3]))
+}
+
+func (step *SolutionStep) formatBUG() string {
+	return fmt.Sprintf("%s=%d", puzzle.FormatCell(step.indices[0]), step.values[0])
+}
+
+func (step *SolutionStep) formatChain() string {
+	return step.formatElimination("%d in chain %s", step.values[0],
+		step.formatIndices())
+}
+
+func (step *SolutionStep) formatAIC() string {
+	if len(step.indices) >= 2 {
+		return step.formatElimination("%s in chain %s...%s",
+			step.formatValuesList(), puzzle.FormatCell(step.indices[0]),
+			puzzle.FormatCell(step.indices[len(step.indices)-1]))
+	}
+	return step.formatDeletedCandidates()
+}
+
+func (step *SolutionStep) formatALS() string {
+	return step.formatElimination("%s in ALS %s",
+		step.formatValuesList(), step.formatIndices())
 }
 
 func (step *SolutionStep) formatUniqueRectangle() string {

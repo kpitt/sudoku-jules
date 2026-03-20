@@ -27,7 +27,32 @@ type DancingLinks struct {
 	Puzzle   *puzzle.Puzzle // reference to the sudoku puzzle
 	solution []int          // tracks selected rows in current solution
 
-	candidates map[int]Candidate // maps each row ID to the candidate it represents
+	candidates []Candidate // maps each row ID to the candidate it represents
+}
+
+var (
+	globalColumnNames [324]string
+)
+
+func init() {
+	for i := 0; i < 324; i++ {
+		if i < 81 {
+			r, c := i/9+1, i%9+1
+			globalColumnNames[i] = fmt.Sprintf("R%dC%d", r, c)
+		} else if i < 162 {
+			idx := i - 81
+			r, val := idx/9+1, idx%9+1
+			globalColumnNames[i] = fmt.Sprintf("R%d#%d", r, val)
+		} else if i < 243 {
+			idx := i - 162
+			c, val := idx/9+1, idx%9+1
+			globalColumnNames[i] = fmt.Sprintf("C%d#%d", c, val)
+		} else {
+			idx := i - 243
+			box, val := idx/9+1, idx%9+1
+			globalColumnNames[i] = fmt.Sprintf("B%d#%d", box, val)
+		}
+	}
 }
 
 // NewDancingLinks creates a new Dancing Links solver for the given puzzle
@@ -61,7 +86,7 @@ func (dl *DancingLinks) buildMatrix() {
 
 	// Create column headers
 	for i := range numConstraints {
-		col := &ColumnNode{Name: dl.getColumnName(i)}
+		col := &ColumnNode{Name: globalColumnNames[i]}
 		col.Up = &col.Node
 		col.Down = &col.Node
 		col.Column = col
@@ -76,20 +101,21 @@ func (dl *DancingLinks) buildMatrix() {
 
 	// Create rows for each possible (row, col, value) combination
 	dl.Rows = make([]*Node, 0, numCandidates)
-	// Also create map for recording the candidate represented by each row.
-	dl.candidates = make(map[int]Candidate)
+	// Also create slice for recording the candidate represented by each row.
+	dl.candidates = make([]Candidate, 0, numCandidates)
 
+	var constraintIndices [4]int
 	for r := range 9 {
 		for c := range 9 {
-			// TODO: r,c or index?
 			cell := dl.Puzzle.Get(r, c)
 
 			if cell.IsSolved() {
 				// Cell is already solved, so get the constraint columns for the
 				// solved value and remove them from the matrix.
 				val := cell.Value()
-				constraints := dl.getConstraintColumns(r, c, val, columns)
-				for _, col := range constraints {
+				dl.getConstraintIndices(r, c, val, &constraintIndices)
+				for _, colIdx := range constraintIndices {
+					col := columns[colIdx]
 					col.Right.Left = col.Left
 					col.Left.Right = col.Right
 				}
@@ -106,34 +132,29 @@ func (dl *DancingLinks) buildMatrix() {
 	}
 }
 
-// getConstraintColumns returns the four constraint column nodes for a
+// getConstraintIndices calculates the four constraint column indices for a
 // (row, col, value) combination.
-func (dl *DancingLinks) getConstraintColumns(r, c, val int, columns []*ColumnNode) []*ColumnNode {
-	// Calculate column indices for the four constraints
-	cellConstraint := r*9 + c
-	rowConstraint := 81 + r*9 + (val - 1)
-	colConstraint := 162 + c*9 + (val - 1)
-	boxConstraint := 243 + (r/3*3+c/3)*9 + (val - 1)
-
-	return []*ColumnNode{
-		columns[cellConstraint],
-		columns[rowConstraint],
-		columns[colConstraint],
-		columns[boxConstraint],
-	}
+func (dl *DancingLinks) getConstraintIndices(r, c, val int, indices *[4]int) {
+	indices[0] = r*9 + c
+	indices[1] = 81 + r*9 + (val - 1)
+	indices[2] = 162 + c*9 + (val - 1)
+	indices[3] = 243 + (r/3*3+c/3)*9 + (val - 1)
 }
 
 // createRowNodes creates the four nodes for a (row, col, value) combination and
 // returns the first node in the row, which will serve as the head of the row.
 func (dl *DancingLinks) createRowNodes(r, c, val int, columns []*ColumnNode) (head *Node) {
-	constraintCols := dl.getConstraintColumns(r, c, val, columns)
+	var constraintIndices [4]int
+	dl.getConstraintIndices(r, c, val, &constraintIndices)
+
 	nodes := make([]*Node, 4)
 	rowID := len(dl.Rows)
 	// Record the candidate for this row ID
-	dl.candidates[rowID] = Candidate{Index: r*9 + c, Value: val}
+	dl.candidates = append(dl.candidates, Candidate{Index: r*9 + c, Value: val})
 
 	// Create nodes for each constraint
-	for i, col := range constraintCols {
+	for i, colIdx := range constraintIndices {
+		col := columns[colIdx]
 		node := &Node{
 			Column: col,
 			RowID:  rowID,
@@ -159,22 +180,7 @@ func (dl *DancingLinks) createRowNodes(r, c, val int, columns []*ColumnNode) (he
 
 // getColumnName returns a descriptive name for the column at the given index
 func (dl *DancingLinks) getColumnName(index int) string {
-	if index < 81 {
-		r, c := index/9+1, index%9+1
-		return fmt.Sprintf("R%dC%d", r, c)
-	} else if index < 162 {
-		idx := index - 81
-		r, val := idx/9+1, idx%9+1
-		return fmt.Sprintf("R%d#%d", r, val)
-	} else if index < 243 {
-		idx := index - 162
-		c, val := idx/9+1, idx%9+1
-		return fmt.Sprintf("C%d#%d", c, val)
-	} else {
-		idx := index - 243
-		box, val := idx/9+1, idx%9+1
-		return fmt.Sprintf("B%d#%d", box, val)
-	}
+	return globalColumnNames[index]
 }
 
 // Solve attempts to solve the sudoku using Dancing Links Algorithm X
@@ -287,7 +293,8 @@ func (dl *DancingLinks) GetSolution() []Candidate {
 
 // decodeRow extracts the row, column, and value from a row ID
 func (dl *DancingLinks) decodeRow(rowID int) (row, col int, val int) {
-	if c, ok := dl.candidates[rowID]; ok {
+	if rowID >= 0 && rowID < len(dl.candidates) {
+		c := dl.candidates[rowID]
 		idx := c.Index
 		return idx / 9, idx % 9, c.Value
 	}

@@ -29,6 +29,7 @@ Run these after implementing to get immediate feedback:
 - Tests: `make test`
 - Lint: `make lint`
 - Regression: `./bin/sudoku -test -file test/lib/reglib-1.3.txt`
+- Benchmarking: `go test -bench=BenchmarkSolveByDifficulty ./internal/solver/`
 
 ## Operational Notes
 

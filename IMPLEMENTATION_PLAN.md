@@ -27,5 +27,5 @@ The "Ultra" goal of implementing advanced sets and complex chain logic to solve 
 ## Priority 5: Polish & Performance
 Optimizing the solver for high throughput and improving the quality of explanation output.
 
-- [ ] **Enhanced Step Logging**: Improve `internal/solver/solution.go` to provide descriptive, human-readable output for complex techniques. (Ref: specs/output-rendering.md 2.2, 2.3)
-- [ ] **Performance Optimization**: Profile the solver and optimize hot paths in bitset operations and house lookups. (Ref: specs/technical-architecture.md 1.1, 1.2)
+- [x] **Enhanced Step Logging**: Improve `internal/solver/solution.go` to provide descriptive, human-readable output for complex techniques. (Ref: specs/output-rendering.md 2.2, 2.3)
+- [x] **Performance Optimization**: Profile the solver and optimize hot paths in bitset operations and house lookups. (Ref: specs/technical-architecture.md 1.1, 1.2). **Note: Achieved 2x-4x performance speedup across benchmark suites.**

@@ -62,6 +62,31 @@ const (
 	allLocBits = 0b0111111111
 )
 
+var (
+	// Precomputed cell peers for each of the 81 cells in a 9x9 Sudoku grid.
+	globalCellPeers [81][]int
+)
+
+func init() {
+	// Precompute cell peers once during package initialization.
+	for i := range 81 {
+		r, c := i/9, i%9
+		rb, cb := r/3*3, c/3*3
+		seen := make(map[int]bool)
+		for j := range 9 {
+			seen[r*9+j] = true
+			seen[j*9+c] = true
+			seen[(rb+j/3)*9+(cb+j%3)] = true
+		}
+		delete(seen, i)
+		peers := make([]int, 0, len(seen))
+		for peerIdx := range seen {
+			peers = append(peers, peerIdx)
+		}
+		globalCellPeers[i] = peers
+	}
+}
+
 func NewSolver(p *puzzle.Puzzle, opts *Options) *Solver {
 	if opts == nil {
 		opts = &Options{}
@@ -96,21 +121,8 @@ func NewSolver(p *puzzle.Puzzle, opts *Options) *Solver {
 		}
 	}
 
-	// Precompute cell peers.
-	for i := range 81 {
-		r, c := i/9, i%9
-		rb, cb := r/3*3, c/3*3
-		seen := make(map[int]bool)
-		for j := range 9 {
-			seen[r*9+j] = true
-			seen[j*9+c] = true
-			seen[(rb+j/3)*9+(cb+j%3)] = true
-		}
-		delete(seen, i)
-		for peerIdx := range seen {
-			s.cellPeers[i] = append(s.cellPeers[i], peerIdx)
-		}
-	}
+	// Use precomputed cell peers.
+	s.cellPeers = globalCellPeers
 
 	return s
 }
