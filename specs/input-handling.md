@@ -25,3 +25,4 @@ The Sudoku application must be versatile in how it accepts puzzle data, supporti
         2. **Ubiquitous**: The loader shall distinguish between givens and placed values (prefixed with `+`).
         3. **Ubiquitous**: The loader shall support explicit candidate deletion defined in the `<deleted candidates>` field.
         4. **Unwanted Behavior**: IF a Hodoku string is malformed or has invalid segments, THEN the loader shall return an error.
+    - **Resources:** Use the ID column of the techniques table in @docs/TECHNIQUES.md to determine the mapping from the `technique` field values to the corresponding technique implementation function.

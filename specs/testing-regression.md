@@ -8,6 +8,7 @@ To ensure the reliability and correctness of the Sudoku solver, especially when 
         1. **Ubiquitous**: The application shall provide a dedicated testing mode to simplify the verification of deductive techniques.
         2. **Ubiquitous**: The system shall provide a CLI option to run all tests in a specified file, treating each line as a single test case in the Hodoku Library Format.
         3. **When** the regression runner completes, **then** it shall report the total number of tests run, the number of passed tests, and the number of failed tests.
+    - **Resouces:** @test/lib/reglib-1.3.txt contains the regression test library for the Hodoku solver. Use this as an example of the expected structure for a "Hodoku Library Format" file.
 
 2. **Deductive Verification Logic**
     - **User Story**: As a tester, I want the system to precisely verify each deductive step, so that I can ensure the techniques are applied correctly and only remove the intended candidates.
