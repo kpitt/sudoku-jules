@@ -34,10 +34,10 @@ Optimizing the solver for high throughput and improving the quality of explanati
 The final frontier of deductive techniques as outlined in the project roadmap and requirements.
 
 - [x] **Simple Coloring**: Single-digit conjugate chains (A/B logic). (Ref: docs/REQUIREMENTS.md 2.1, docs/ROADMAP.md 3)
-- [ ] **Multi-Coloring**: Multi-digit conjugate chains. (Ref: docs/REQUIREMENTS.md 2.1, docs/ROADMAP.md 3)
+- [x] **Multi-Coloring**: Multi-digit conjugate chains, implemented using the generalized AIC engine. (Ref: docs/REQUIREMENTS.md 2.1, docs/ROADMAP.md 3)
 - [x] **Sue de Coq**: Implement complex set intersection logic. (Ref: docs/REQUIREMENTS.md 2.1, docs/ROADMAP.md 4)
-- [ ] **ALS-XY-Chain**: Generalized Almost Locked Set chains. (Ref: docs/REQUIREMENTS.md 2.1)
-- [ ] **Franken Fish (X-Wing, Swordfish)**: Implement fish logic using non-standard houses (rows/columns + boxes). (Ref: docs/REQUIREMENTS.md 2.1)
+- [x] **ALS-XY-Chain**: Generalized Almost Locked Set chains, implemented using ALS nodes within the AIC engine. (Ref: docs/REQUIREMENTS.md 2.1)
+- [x] **Franken & Mutant Fish**: Implement fish logic using non-standard houses (rows/columns + boxes), including Finned and Sashimi variants. (Ref: docs/REQUIREMENTS.md 2.1)
 - [ ] **Forcing Chains & Nets**: Complex multi-digit branching chains. (Ref: docs/REQUIREMENTS.md 2.1)
 
 ## Priority 7: Code Quality & Standards
@@ -51,15 +51,14 @@ Ensuring codebase health and maintainability through rigorous static analysis an
 ## Findings & Next Steps
 
 ### Recent Findings
-- **Technique Coverage**: The solver now supports most "Unfair" and "Extreme" techniques, including ALS-XZ, ALS-XY-Wing, and a robust AIC (Alternating Inference Chain) engine that handles X-Chains and XY-Chains.
+- **Technique Coverage**: The solver now supports most "Unfair" and "Extreme" techniques, including ALS-XZ, ALS-XY-Wing, and a robust AIC (Alternating Inference Chain) engine.
+- **AIC Engine Extensions**: The AIC engine has been extended to support **Multi-Coloring** (via single-digit conjugate chains) and **ALS-XY-Chain** (by integrating ALS nodes as chain links).
 - **Simple Coloring**: Implementation includes grouped strong links, providing more elimination power than basic coloring.
 - **Sue de Coq**: Successfully implemented with box-row and box-column intersection logic.
+- **Franken & Mutant Fish**: Implemented generalized fish logic (X-Wing, Swordfish, Jellyfish) using non-standard houses (rows/columns + boxes), including Finned and Sashimi variants.
 - **Performance**: High-performance bitset operations and efficient house lookups maintain the 2x-4x speedup over the baseline solver.
 - **Code Quality**: All 98+ linting issues have been resolved; the codebase now follows modern Go idioms and has robust error handling.
 
 ### Next Steps
-- **Multi-Coloring**: Implement the handler for multi-digit conjugate chains to complete the coloring suite.
-- **Advanced Chains**: Implement ALS-XY-Chain to further extend the solver's reach into "Extreme" territory.
-- **Non-Standard Fish**: Implement Franken and Mutant Fish variants.
 - **Full Forcing Chains**: Explore full contradiction-based branching (Forcing Nets) for the most resistant puzzles.
-- **Formal Verification**: Add dedicated unit tests for the newest techniques (Simple Coloring, Sue de Coq) to complement existing regression tests.
+- **Formal Verification**: Add dedicated unit tests and regression cases for the newest techniques (Franken/Mutant Fish, Multi-Coloring, ALS-XY-Chain, Sue de Coq).

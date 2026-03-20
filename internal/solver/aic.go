@@ -12,8 +12,6 @@ const (
 	numIntersections = 54 // 27 row-box, 27 col-box
 	numCellLits      = numCells * numDigits
 	numIntLits       = numIntersections * numDigits
-	totalLits        = numCellLits + numIntLits
-	totalNodes       = totalLits * 2
 )
 
 // Literal mapping functions
@@ -22,13 +20,15 @@ func cellLit(cellIdx, val int) int {
 }
 
 func rbLit(rIdx, bIdxInRow, val int) int {
-	// rIdx: 0..8, bIdxInRow: 0..2 (box 0, 1, 2 in that row)
 	return numCellLits + (rIdx*3+bIdxInRow)*9 + (val - 1)
 }
 
 func cbLit(cIdx, bIdxInCol, val int) int {
-	// cIdx: 0..8, bIdxInCol: 0..2 (box 0, 1, 2 in that column)
 	return numCellLits + 27*9 + (cIdx*3+bIdxInCol)*9 + (val - 1)
+}
+
+func alsLit(alsIdx, val, numBaseLits int) int {
+	return numBaseLits + alsIdx*9 + (val - 1)
 }
 
 func node(lit int, isTrue bool) aicNode {
@@ -39,14 +39,20 @@ func node(lit int, isTrue bool) aicNode {
 }
 
 type graphBuilder struct {
-	s   *Solver
-	adj [][]aicNode
+	s        *Solver
+	adj      [][]aicNode
+	numLits  int
+	baseLits int
 }
 
-func newGraphBuilder(s *Solver) *graphBuilder {
+func newGraphBuilder(s *Solver, numALSLits int) *graphBuilder {
+	baseLits := numCellLits + numIntLits
+	totalLits := baseLits + numALSLits
 	return &graphBuilder{
-		s:   s,
-		adj: make([][]aicNode, totalNodes),
+		s:        s,
+		adj:      make([][]aicNode, totalLits*2),
+		numLits:  totalLits,
+		baseLits: baseLits,
 	}
 }
 
@@ -73,7 +79,8 @@ func (gb *graphBuilder) addWeakLink(u, v aicNode) {
 	gb.addImplication(v, u.negate())
 }
 
-func (gb *graphBuilder) build(singleDigit int, options chainOptions) {
+func (gb *graphBuilder) build(singleDigit int, options chainOptions, alsList []als) {
+	// 1. Cell and Grouped links
 	if options.useGroupedLinks {
 		for c := 0; c < 81; c++ {
 			cell := gb.s.puzzle.Cell(c)
@@ -101,6 +108,7 @@ func (gb *graphBuilder) build(singleDigit int, options chainOptions) {
 		}
 	}
 
+	// 2. House links (Strong and Weak)
 	for v := 1; v <= 9; v++ {
 		if singleDigit != 0 && v != singleDigit {
 			continue
@@ -162,6 +170,7 @@ func (gb *graphBuilder) build(singleDigit int, options chainOptions) {
 		}
 	}
 
+	// 3. Bivalue cells
 	if options.useBivalueCells {
 		for c := 0; c < 81; c++ {
 			cell := gb.s.puzzle.Cell(c)
@@ -174,6 +183,7 @@ func (gb *graphBuilder) build(singleDigit int, options chainOptions) {
 		}
 	}
 
+	// 4. Weak links in cell (cannot have two digits in same cell)
 	if options.useWeakLinks && singleDigit == 0 {
 		for c := 0; c < 81; c++ {
 			cell := gb.s.puzzle.Cell(c)
@@ -188,6 +198,7 @@ func (gb *graphBuilder) build(singleDigit int, options chainOptions) {
 		}
 	}
 
+	// 5. Grouped implications (Intersection -> Cell)
 	if options.useGroupedLinks {
 		for v := 1; v <= 9; v++ {
 			if singleDigit != 0 && v != singleDigit {
@@ -235,6 +246,70 @@ func (gb *graphBuilder) build(singleDigit int, options chainOptions) {
 			}
 		}
 	}
+
+	// 6. ALS links
+	if len(alsList) > 0 {
+		for i, a := range alsList {
+			vals := a.candidates.Values()
+			// Internal strong links: not v1 => v2, not v1 => v3, etc.
+			for _, v1 := range vals {
+				n1 := node(alsLit(i, v1, gb.baseLits), true)
+				for _, v2 := range vals {
+					if v1 == v2 { continue }
+					n2 := node(alsLit(i, v2, gb.baseLits), true)
+					gb.addImplication(n1.negate(), n2)
+				}
+				// Link ALS literals to cell literals
+				// Cell(c, v) is TRUE => ALS(i, v) is TRUE
+				for _, cIdx := range a.cells {
+					if gb.s.puzzle.Cell(cIdx).HasCandidate(v1) {
+						gb.addImplication(node(cellLit(cIdx, v1), true), n1)
+						gb.addImplication(n1.negate(), node(cellLit(cIdx, v1), false))
+					}
+				}
+			}
+		}
+
+		// Inter-ALS weak links (Restricted Commons)
+		for i := 0; i < len(alsList); i++ {
+			for j := i + 1; j < len(alsList); j++ {
+				a, b := alsList[i], alsList[j]
+				common := a.candidates.Intersection(b.candidates)
+				for _, v := range common.Values() {
+					if gb.s.isRestrictedCommon(a, b, v) {
+						gb.addWeakLink(node(alsLit(i, v, gb.baseLits), true), node(alsLit(j, v, gb.baseLits), true))
+					}
+				}
+			}
+		}
+		
+		// Interaction between ALS and cells
+		for i, a := range alsList {
+			for _, v := range a.candidates.Values() {
+				aLitN := node(alsLit(i, v, gb.baseLits), true)
+				// If ALS(i, v) is TRUE, then any cell that sees ALL v-cells in ALS A cannot be v.
+				vCells := gb.s.cellsWithCandidate(a.cells, v)
+				for cIdx := 0; cIdx < 81; cIdx++ {
+					if !gb.s.puzzle.Cell(cIdx).HasCandidate(v) { continue }
+					inALS := false
+					for _, ac := range a.cells { if ac == cIdx { inALS = true; break } }
+					if inALS { continue }
+
+					seesAll := true
+					for _, vc := range vCells {
+						if !gb.s.sees(cIdx, vc) {
+							seesAll = false
+							break
+						}
+					}
+					if seesAll {
+						gb.addImplication(aLitN, node(cellLit(cIdx, v), false))
+						gb.addImplication(node(cellLit(cIdx, v), true), aLitN.negate())
+					}
+				}
+			}
+		}
+	}
 }
 
 type chainOptions struct {
@@ -250,7 +325,7 @@ func (s *Solver) findAICs() bool {
 		useWeakLinks:    true,
 		useBivalueCells: true,
 		useGroupedLinks: true,
-	})
+	}, nil)
 }
 
 func (s *Solver) findNiceLoops() bool {
@@ -259,7 +334,22 @@ func (s *Solver) findNiceLoops() bool {
 		useWeakLinks:    true,
 		useBivalueCells: true,
 		useGroupedLinks: true,
-	})
+	}, nil)
+}
+
+func (s *Solver) findMultiColoring() bool {
+	found := false
+	for v := 1; v <= 9; v++ {
+		if s.findChains(v, kindMultiColoring, chainOptions{
+			useStrongLinks:  true,
+			useWeakLinks:    true,
+			useBivalueCells: false,
+			useGroupedLinks: true,
+		}, nil) {
+			found = true
+		}
+	}
+	return found
 }
 
 func (s *Solver) findXChains() bool {
@@ -270,7 +360,7 @@ func (s *Solver) findXChains() bool {
 			useWeakLinks:    true,
 			useBivalueCells: false,
 			useGroupedLinks: true,
-		}) {
+		}, nil) {
 			found = true
 		}
 	}
@@ -283,14 +373,24 @@ func (s *Solver) findXYChains() bool {
 		useWeakLinks:    true,
 		useBivalueCells: true,
 		useGroupedLinks: false,
-	})
+	}, nil)
 }
 
-func (s *Solver) findChains(singleDigit int, kind techniqueKind, options chainOptions) bool {
-	gb := newGraphBuilder(s)
-	gb.build(singleDigit, options)
+func (s *Solver) findALSXYChain() bool {
+	alsList := s.findALSs()
+	return s.findChains(0, kindALSXYChain, chainOptions{
+		useStrongLinks:  true,
+		useWeakLinks:    true,
+		useBivalueCells: true,
+		useGroupedLinks: true,
+	}, alsList)
+}
 
-	found := false
+func (s *Solver) findChains(singleDigit int, kind techniqueKind, options chainOptions, alsList []als) bool {
+	numALSLits := len(alsList) * 9
+	gb := newGraphBuilder(s, numALSLits)
+	gb.build(singleDigit, options, alsList)
+
 	step := NewStep(kind)
 
 	for lit := 0; lit < numCellLits; lit++ {
@@ -302,43 +402,84 @@ func (s *Solver) findChains(singleDigit int, kind techniqueKind, options chainOp
 			continue
 		}
 
-		if s.canReachContradiction(gb.adj, node(lit, true)) {
+		if path := s.getContradictionPath(gb.adj, node(lit, true)); path != nil {
 			step.DeleteCandidate(cIdx, vIdx)
-			found = true
+			step.WithIndices(extractIndices(path)...)
+			if singleDigit != 0 {
+				step.WithValues(singleDigit)
+			}
+			s.applyStep(step)
+			return true
 		}
-		if s.canReachContradiction(gb.adj, node(lit, false)) {
+		if path := s.getContradictionPath(gb.adj, node(lit, false)); path != nil {
 			step.PlaceCandidate(cIdx, vIdx)
-			found = true
+			step.WithIndices(extractIndices(path)...)
+			if singleDigit != 0 {
+				step.WithValues(singleDigit)
+			}
+			s.applyStep(step)
+			return true
 		}
 	}
 
-	if found {
-		if singleDigit != 0 {
-			step.WithValues(singleDigit)
-		}
-		s.applyStep(step)
-	}
-	return found
+	return false
 }
 
-func (s *Solver) canReachContradiction(adj [][]aicNode, start aicNode) bool {
-	visited := make([]bool, totalNodes)
+func extractIndices(path []aicNode) []int {
+	var indices []int
+	seen := make(map[int]bool)
+	for _, n := range path {
+		lit := int(n) / 2
+		if lit < numCellLits {
+			idx := lit / 9
+			if !seen[idx] {
+				indices = append(indices, idx)
+				seen[idx] = true
+			}
+		}
+	}
+	return indices
+}
+
+func (s *Solver) getContradictionPath(adj [][]aicNode, start aicNode) []aicNode {
+	totalNodes := len(adj)
+	visited := make([]aicNode, totalNodes)
+	for i := range visited {
+		visited[i] = -1
+	}
 	queue := []aicNode{start}
-	visited[start] = true
+	visited[start] = start // self as marker
 	target := start.negate()
 
+	found := false
 	for len(queue) > 0 {
 		curr := queue[0]
 		queue = queue[1:]
 		if curr == target {
-			return true
+			found = true
+			break
 		}
 		for _, next := range adj[curr] {
-			if !visited[next] {
-				visited[next] = true
+			if visited[next] == -1 {
+				visited[next] = curr
 				queue = append(queue, next)
 			}
 		}
 	}
-	return false
+
+	if found {
+		var path []aicNode
+		curr := target
+		for curr != start {
+			path = append(path, curr)
+			curr = visited[curr]
+		}
+		path = append(path, start)
+		// Reverse path
+		for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+			path[i], path[j] = path[j], path[i]
+		}
+		return path
+	}
+	return nil
 }

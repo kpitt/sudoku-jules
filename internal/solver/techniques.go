@@ -44,6 +44,12 @@ const (
 	kindFinnedXWing
 	kindFinnedSwordfish
 	kindFinnedJellyfish
+	kindFrankenXWing
+	kindFrankenSwordfish
+	kindFrankenJellyfish
+	kindMutantXWing
+	kindMutantSwordfish
+	kindMutantJellyfish
 	kindSueDeCoq
 	kindSimpleColoring
 	kindMultiColoring
@@ -53,6 +59,7 @@ const (
 	kindAIC
 	kindALSXZ
 	kindALSXYWing
+	kindALSXYChain
 	kindBruteForce
 )
 
@@ -100,18 +107,168 @@ func (s *Solver) initTechniques() {
 		{"Finned X-Wing", s.findFinnedXWings},
 		{"Finned Swordfish", s.findFinnedSwordfish},
 		{"Finned Jellyfish", s.findFinnedJellyfish},
+		{"Franken X-Wing", s.findFrankenXWing},
+		{"Franken Swordfish", s.findFrankenSwordfish},
+		{"Franken Jellyfish", s.findFrankenJellyfish},
+		{"Mutant X-Wing", s.findMutantXWing},
+		{"Mutant Swordfish", s.findMutantSwordfish},
+		{"Mutant Jellyfish", s.findMutantJellyfish},
 		{"Sue de Coq", s.findSueDeCoq},
 		{"Simple Coloring", s.findSimpleColoring},
-		{"Multi-Coloring", nil},
+		{"Multi-Coloring", s.findMultiColoring},
 		{"X-Chain", s.findXChains},
 		{"XY-Chain", s.findXYChains},
 		{"Nice Loop", s.findNiceLoops},
 		{"AIC", s.findAICs},
 		{"ALS-XZ", s.findALSXZ},
 		{"ALS-XY-Wing", s.findALSXYWing},
+		{"ALS-XY-Chain", s.findALSXYChain},
 		{"Brute Force", nil}, // custom check as last resort
 	}
 }
+
+func (s *Solver) findFrankenXWing() bool { return s.findGeneralizedFish(2, kindFrankenXWing, false) }
+func (s *Solver) findFrankenSwordfish() bool { return s.findGeneralizedFish(3, kindFrankenSwordfish, false) }
+func (s *Solver) findFrankenJellyfish() bool { return s.findGeneralizedFish(4, kindFrankenJellyfish, false) }
+func (s *Solver) findMutantXWing() bool { return s.findGeneralizedFish(2, kindMutantXWing, true) }
+func (s *Solver) findMutantSwordfish() bool { return s.findGeneralizedFish(3, kindMutantSwordfish, true) }
+func (s *Solver) findMutantJellyfish() bool { return s.findGeneralizedFish(4, kindMutantJellyfish, true) }
+
+func (s *Solver) findGeneralizedFish(size int, kind techniqueKind, allowMutant bool) bool {
+	globalStep := NewStep(kind)
+	foundAny := false
+
+	for val := 1; val <= 9; val++ {
+		// Identify potential base houses
+		var potentialBases []*House
+		for _, h := range s.houses {
+			if !allowMutant && h.Kind == kindBox {
+				continue
+			}
+			if h.NumLocations(val) >= 2 {
+				potentialBases = append(potentialBases, h)
+			}
+		}
+
+		if len(potentialBases) < size {
+			continue
+		}
+
+		// Try all combinations of size base houses
+		if s.collectGeneralizedFish(val, size, globalStep, potentialBases) {
+			foundAny = true
+		}
+	}
+
+	if foundAny {
+		s.applyStep(globalStep)
+		return true
+	}
+	return false
+}
+
+func (s *Solver) collectGeneralizedFish(val, size int, step *SolutionStep, potentialBases []*House) bool {
+	found := false
+	var check func(start int, current []*House) bool
+	check = func(start int, current []*House) bool {
+		if len(current) == size {
+			if s.checkGeneralizedFishForBaseSetAndStep(val, current, step) {
+				found = true
+				// We don't return true here because we want to find ALL combinations
+				// for this value? Actually, one combination is usually enough for one digit.
+				// But let's find all to be safe.
+			}
+			return false // Keep searching
+		}
+		for i := start; i < len(potentialBases); i++ {
+			if check(i+1, append(current, potentialBases[i])) {
+				return true
+			}
+		}
+		return false
+	}
+	check(0, nil)
+	return found
+}
+
+func (s *Solver) checkGeneralizedFishForBaseSetAndStep(val int, bases []*House, step *SolutionStep) bool {
+	// 1. Get all cell indices in base houses
+	var sIdxs bitset.BitSet128
+	for _, b := range bases {
+		for _, cell := range b.Cells {
+			if cell.HasCandidate(val) {
+				sIdxs.Add(cell.Index())
+			}
+		}
+	}
+	if sIdxs.Size() == 0 {
+		return false
+	}
+
+	// 2. Identify potential cover houses
+	potentialCovers := make(map[int]*House)
+	for idx := range sIdxs.All() {
+		r, c := idx/9, idx%9
+		b := s.puzzle.Cell(idx).Box()
+		potentialCovers[r] = s.rows[r]
+		potentialCovers[9+c] = s.columns[c]
+		potentialCovers[18+b] = s.boxes[b]
+	}
+
+	var coverList []*House
+	for _, h := range potentialCovers {
+		coverList = append(coverList, h)
+	}
+
+	// 3. Try to find size cover houses that cover all sIdxs
+	size := len(bases)
+	var checkCover func(start int, current []*House, covered bitset.BitSet128) bool
+	checkCover = func(start int, current []*House, covered bitset.BitSet128) bool {
+		if covered.Size() == sIdxs.Size() {
+			if len(current) != size { return false }
+
+			foundElim := false
+			for _, ch := range current {
+				for _, cell := range ch.Cells {
+					if !sIdxs.Contains(cell.Index()) && cell.HasCandidate(val) {
+						step.DeleteCandidate(cell.Index(), val)
+						foundElim = true
+					}
+				}
+			}
+
+			if foundElim {
+				step.WithValues(val).WithBases(bases...).WithCovers(current...)
+				return true
+			}
+			return false
+		}
+		
+		if len(current) == size { return false }
+
+		for i := start; i < len(coverList); i++ {
+			h := coverList[i]
+			newCovered := covered
+			hasNew := false
+			for _, cell := range h.Cells {
+				if sIdxs.Contains(cell.Index()) && !covered.Contains(cell.Index()) {
+					newCovered.Add(cell.Index())
+					hasNew = true
+				}
+			}
+			if !hasNew { continue }
+
+			if checkCover(i+1, append(current, h), newCovered) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return checkCover(0, nil, bitset.BitSet128{})
+}
+
+func sizeOfBases(bases []*House) int { return len(bases) }
 
 func (s *Solver) findFinnedSwordfish() bool {
 	return s.findFinnedFishOfSize(3, kindFinnedSwordfish)

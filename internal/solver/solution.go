@@ -168,7 +168,7 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 	case kindRemotePair:
 		return step.formatRemotePair()
 
-	case kindSimpleColoring:
+	case kindSimpleColoring, kindMultiColoring:
 		return step.formatSimpleColoring()
 
 	case kindWWing:
@@ -180,7 +180,7 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 	case kindSueDeCoq:
 		return step.formatSueDeCoq()
 
-	case kindXChain, kindXYChain:
+	case kindXChain, kindXYChain, kindALSXYChain:
 		return step.formatChain()
 
 	case kindNiceLoop, kindAIC:
@@ -336,8 +336,11 @@ func (step *SolutionStep) formatSueDeCoq() string {
 }
 
 func (step *SolutionStep) formatChain() string {
-	return step.formatElimination("%d in chain %s", step.values[0],
-		step.formatIndices())
+	if len(step.values) > 0 {
+		return step.formatElimination("%d in chain %s", step.values[0],
+			step.formatIndices())
+	}
+	return step.formatElimination("chain %s", step.formatIndices())
 }
 
 func (step *SolutionStep) formatAIC() string {
@@ -549,6 +552,9 @@ func formatDigitsCompact(digits []int) string {
 // formatDigitsSeparated formats a list of digits separated by the specified
 // separator rune.  Digits are assumed to already be in the desired order.
 func formatDigitsSeparated(digits []int, sep rune) string {
+	if len(digits) == 0 {
+		return ""
+	}
 	result := make([]rune, 0, 2*len(digits)-1)
 	for i, d := range digits {
 		if i > 0 {
