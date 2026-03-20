@@ -13,7 +13,8 @@ type techniqueKind int
 const (
 	// Enum constants for each solving technique, which must be defined in the
 	// order that they should be applied.
-	kindNakedSingle techniqueKind = iota
+	kindFullHouse techniqueKind = iota
+	kindNakedSingle
 	kindHiddenSingle
 	kindLockedCandidatesPointing
 	kindLockedCandidatesClaiming
@@ -64,7 +65,8 @@ type Technique struct {
 func (s *Solver) initTechniques() {
 	// The order of this list must match the order of the techniqueKind constants.
 	s.techniques = []Technique{
-		{"Naked Single", nil}, // checked during candidate removal
+		{"Full House", s.findFullHouse},
+		{"Naked Single", s.findNakedSingles}, // also checked during candidate removal
 		{"Hidden Single", s.findHiddenSingles},
 		{"Locked Candidates Type 1 (Pointing)", s.findPointingTuples},
 		{"Locked Candidates Type 2 (Claiming)", s.findClaimingTuples},
@@ -103,6 +105,39 @@ func (s *Solver) initTechniques() {
 	}
 }
 
+func (s *Solver) findFullHouse() bool {
+	for _, h := range s.houses {
+		if h.NumUnsolved() == 1 {
+			// Find the unsolved cell
+			for _, cell := range h.Cells {
+				if !cell.IsSolved() {
+					val := cell.CandidateValues()[0]
+					step := NewStep(kindFullHouse).
+						WithHouse(h).
+						WithPlacedValue(cell.Index(), val)
+					s.applyStep(step)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *Solver) findNakedSingles() bool {
+	for i := range 81 {
+		cell := s.puzzle.Cell(i)
+		if !cell.IsSolved() && cell.NumCandidates() == 1 {
+			val := cell.CandidateValues()[0]
+			step := NewStep(kindNakedSingle).
+				WithPlacedValue(i, val)
+			s.applyStep(step)
+			return true
+		}
+	}
+	return false
+}
+
 // ***** IMPORTANT NOTE *****
 //
 // When processing a check against a set of viable candidates, _always_
@@ -122,11 +157,12 @@ func (s *Solver) initTechniques() {
 // Single" pattern.  A "Hidden Single" is the only cell that contains a
 // particular candidate in its house.
 func (s *Solver) findHiddenSingles() bool {
-	found := false
 	for _, h := range s.houses {
-		found = s.checkHiddenSinglesForHouse(h) || found
+		if s.checkHiddenSinglesForHouse(h) {
+			return true
+		}
 	}
-	return found
+	return false
 }
 
 func (s *Solver) checkHiddenSinglesForHouse(h *House) bool {

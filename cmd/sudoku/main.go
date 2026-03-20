@@ -1,8 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/kpitt/sudoku/internal/puzzle"
@@ -11,13 +14,48 @@ import (
 )
 
 func main() {
-	if isStdinTTY() {
-		fmt.Println("Enter initial puzzle as 9 lines of 9 characters.")
-		fmt.Println("Use any character other than the digits 1-9 for empty cells.")
-		fmt.Println("(Ctrl+D to finish on Unix/Linux, Ctrl+Z then Enter on Windows):")
+	var (
+		inputFile   string
+		bruteForce  bool
+		logLevel    string
+		testMode    bool
+	)
+
+	flag.StringVar(&inputFile, "file", "", "input file (defaults to stdin)")
+	flag.BoolVar(&bruteForce, "brute-force", true, "enable brute-force fallback")
+	flag.StringVar(&logLevel, "log-level", "info", "log level (info, debug, trace)")
+	flag.BoolVar(&testMode, "test", false, "regression mode")
+	flag.Parse()
+
+	if testMode {
+		runRegression(inputFile)
+		return
 	}
 
-	p, err := puzzle.FromFile(os.Stdin)
+	var input io.Reader
+	if inputFile != "" {
+		f, err := os.Open(inputFile)
+		if err != nil {
+			fatalError(err.Error())
+		}
+		defer f.Close()
+		input = f
+	} else {
+		input = os.Stdin
+		if isStdinTTY() {
+			fmt.Println("Enter initial puzzle as 9 lines of 9 characters.")
+			fmt.Println("Use any character other than the digits 1-9 for empty cells.")
+			fmt.Println("(Ctrl+D to finish on Unix/Linux, Ctrl+Z then Enter on Windows):")
+		}
+	}
+
+	// Read all from input to support FromString's format detection
+	data, err := io.ReadAll(input)
+	if err != nil {
+		fatalError(err.Error())
+	}
+
+	p, err := puzzle.FromString(string(data))
 	if err != nil {
 		fatalError(err.Error())
 	}
@@ -26,10 +64,20 @@ func main() {
 	p.Print()
 	fmt.Println()
 
+	liveLog := false
+	enableDebug := false
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		liveLog = true
+	case "trace":
+		liveLog = true
+		enableDebug = true
+	}
+
 	opts := &solver.Options{
-		// EnableDebug:      true,
-		// LiveLog:          true,
-		EnableBruteForce: true,
+		LiveLog:          liveLog,
+		EnableDebug:      enableDebug,
+		EnableBruteForce: bruteForce,
 	}
 	s := solver.NewSolver(p, opts)
 	s.Solve()
@@ -52,6 +100,27 @@ func main() {
 	if !opts.LiveLog {
 		fmt.Println()
 		s.PrintSolution()
+	}
+}
+
+func runRegression(filename string) {
+	if filename == "" {
+		fatalError("regression mode requires an input file via -file")
+	}
+
+	stats, err := solver.RunRegressionFile(filename)
+	if err != nil {
+		fatalError(err.Error())
+	}
+
+	fmt.Printf("\nRegression Results: %s\n", filename)
+	fmt.Printf("  Total Tests:  %d\n", stats.Total)
+	fmt.Printf("  Passed Tests: %d\n", stats.Passed)
+	fmt.Printf("  Failed Tests: %d\n", stats.Failed)
+	fmt.Printf("  Duration:     %v\n", stats.End.Sub(stats.Start))
+
+	if stats.Failed > 0 {
+		os.Exit(1)
 	}
 }
 

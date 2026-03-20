@@ -19,6 +19,8 @@ files before generating code or architectural suggestions.
 
 - To build the project: `make build`
 - To ensure all dependencies are downloaded: `make deps`
+- To solve a puzzle: `./bin/sudoku [-file puzzle.txt] [--brute-force=false] [--log-level debug|trace]`
+- To run regression tests: `./bin/sudoku -test -file tests.txt`
 
 ## Validation
 
@@ -26,6 +28,7 @@ Run these after implementing to get immediate feedback:
 
 - Tests: `make test`
 - Lint: `make lint`
+- Regression: `./bin/sudoku -test -file test/lib/reglib-1.3.txt`
 
 ## Operational Notes
 

@@ -42,6 +42,11 @@ func FromFile(f *os.File) (*Puzzle, error) {
 //	                 *-----------*        +-----+-----+-----+
 //	```
 func FromString(s string) (*Puzzle, error) {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, ":") {
+		return FromHodokuString(s)
+	}
+
 	p := NewPuzzle()
 	// Determine the newline sequence used in the input string, and split the
 	// string into lines based on that sequence.
@@ -100,6 +105,80 @@ func FromString(s string) (*Puzzle, error) {
 
 	if i < 81 {
 		return nil, errPuzzleFormat("not enough cells")
+	}
+
+	return p, nil
+}
+
+// FromHodokuString creates a new puzzle from a Hodoku Library Format string:
+// :technique:candidates:givens:deleted:eliminations:placements:extra
+func FromHodokuString(s string) (*Puzzle, error) {
+	if !strings.HasPrefix(s, ":") {
+		return nil, errPuzzleFormat("not a Hodoku format string")
+	}
+	parts := strings.Split(s, ":")
+	if len(parts) < 8 {
+		return nil, errPuzzleFormat("invalid Hodoku format string (expected 8 parts, got %d)", len(parts))
+	}
+
+	// technique := parts[1]
+	// candidates := parts[2]
+	givensStr := parts[3]
+	deletedStr := parts[4]
+	// eliminations := parts[5]
+	// placements := parts[6]
+	// extra := parts[7]
+
+	p := NewPuzzle()
+
+	// Parse givens
+	// Example: +6+3+42+8+9...
+	// A '+' before a digit means it's a placed value, not a given.
+	// '.' or '0' means empty.
+	idx := 0
+	for i := 0; i < len(givensStr) && idx < 81; i++ {
+		c := givensStr[i]
+		if c == '+' {
+			i++
+			if i >= len(givensStr) {
+				return nil, errPuzzleFormat("invalid Hodoku givens: trailing +")
+			}
+			c = givensStr[i]
+			if !unicode.IsDigit(rune(c)) || c == '0' {
+				return nil, errPuzzleFormat("invalid Hodoku givens: + must be followed by 1-9")
+			}
+			val := int(c - '0')
+			p.PlaceValue(idx, val)
+			idx++
+		} else if c == '.' || c == '0' {
+			idx++
+		} else if unicode.IsDigit(rune(c)) {
+			val := int(c - '0')
+			p.GivenValue(idx, val)
+			idx++
+		}
+	}
+
+	if idx < 81 {
+		return nil, errPuzzleFormat("not enough cells in Hodoku givens (got %d, expected 81)", idx)
+	}
+
+	// Parse deleted candidates
+	// Format: <candidate><line><col> separated by spaces
+	if deletedStr != "" {
+		deletedParts := strings.Fields(deletedStr)
+		for _, dp := range deletedParts {
+			if len(dp) != 3 {
+				return nil, errPuzzleFormat("invalid deleted candidate format: %s", dp)
+			}
+			val := int(dp[0] - '0')
+			row := int(dp[1] - '1')
+			col := int(dp[2] - '1')
+			if val < 1 || val > 9 || row < 0 || row > 8 || col < 0 || col > 8 {
+				return nil, errPuzzleFormat("invalid deleted candidate values: %s", dp)
+			}
+			p.Get(row, col).RemoveCandidate(val)
+		}
 	}
 
 	return p, nil

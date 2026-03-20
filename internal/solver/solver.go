@@ -38,6 +38,8 @@ type (
 		LiveLog          bool // print step descriptions as they are found
 		EnableDebug      bool // print additional progress info for debugging
 		EnableBruteForce bool // enable brute-force search as a last resort
+
+		DisableAutomaticSingles bool // disable automatic Naked Single detection during candidate removal
 	}
 )
 
@@ -217,7 +219,7 @@ func (s *Solver) removeCellCandidate(idx int, val int) {
 	// Checking for a "Naked Single" each time a candidate is removed narrows
 	// down the possible options more quickly, and doesn't require iterating
 	// over the entire puzzle grid at the start of each solver pass.
-	if cell.NumCandidates() == 1 {
+	if !s.DisableAutomaticSingles && cell.NumCandidates() == 1 {
 		step := NewStep(kindNakedSingle).
 			WithPlacedValue(idx, cell.CandidateValues()[0])
 		s.applyStep(step)

@@ -68,7 +68,8 @@ func (step *SolutionStep) WithCovers(covers ...*House) *SolutionStep {
 }
 
 func (step *SolutionStep) IsSingle() bool {
-	return step.technique == kindNakedSingle ||
+	return step.technique == kindFullHouse ||
+		step.technique == kindNakedSingle ||
 		step.technique == kindHiddenSingle ||
 		step.technique == kindBruteForce
 }
