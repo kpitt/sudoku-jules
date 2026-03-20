@@ -1,9 +1,21 @@
 bin/
-solver.test
+/sudoku
+/solver.test
 
 # Profiling output files
 *.prof
 # Code coverage report files
 coverage.*
 
-.idea/
+# temporary working or testing files and directories
+cpu.out
+tmp.txt
+tmp/
+temp/
+*.bak
+
+# Ralph Loop activity logs
+/.ralph/activity_*.txt
+/.ralph/logs/
+
+/.idea/
