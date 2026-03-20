@@ -35,4 +35,4 @@ Succinct learnings about how to RUN the project:
 
 ### Codebase Patterns
 
-...
+- Prefer `gihub.com/spf13/cobra` over the basic `flag` package for handling CLI options.

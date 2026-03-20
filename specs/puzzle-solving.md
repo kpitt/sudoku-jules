@@ -20,6 +20,7 @@ The Sudoku solver is designed to solve standard 9x9 puzzles by prioritizing huma
     - **Acceptance Criteria**:
         1. **When** the deductive engine can no longer make progress on a puzzle, **then** the system shall employ Knuth's Algorithm X (using Dancing Links) to find the solution.
         2. **Ubiquitous**: The brute-force algorithm shall find all possible solutions (if the puzzle is not unique) or determine if no solution exists.
+        3. **Ubiquitous**: The solver shall integrate `CountSolutions(2)` into the main solve loop to detect and report non-unique puzzles as early as possible.
 
 4. **Performance Targets**
     - **User Story**: As a high-frequency user, I want the solver to be extremely fast, so that I can solve thousands of puzzles per second.
