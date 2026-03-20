@@ -75,6 +75,11 @@ func (step *SolutionStep) IsSingle() bool {
 }
 
 func (step *SolutionStep) DeleteCandidate(index, value int) {
+	for _, c := range step.deletedCandidates {
+		if c.Index == index && c.Value == value {
+			return
+		}
+	}
 	step.deletedCandidates = append(step.deletedCandidates, Candidate{Index: index, Value: value})
 }
 

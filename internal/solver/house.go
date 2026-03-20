@@ -152,3 +152,12 @@ func (h *House) indexesFromLocs(locs []int) []int {
 		return h.Cells[l].Index()
 	})
 }
+
+func (h *House) locFromIndex(idx int) int {
+	for i, c := range h.Cells {
+		if c.Index() == idx {
+			return i
+		}
+	}
+	return -1
+}

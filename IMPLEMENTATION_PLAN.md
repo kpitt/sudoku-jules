@@ -11,10 +11,10 @@ Expanding the deductive engine to cover standard advanced human-like strategies.
 - [x] **Empty Rectangle**: Implement intersection-based eliminations. (Ref: specs/deductive-techniques.md 1.4)
 - [x] **W-Wing**: Implement eliminations based on linked bivalue cells. (Ref: specs/deductive-techniques.md 1.5)
 - [x] **Unique Rectangle Type 2** (Ref: specs/deductive-techniques.md 1.6)
-- [ ] **Uniqueness Tests (3-6)**: Implement Type 3 through Type 6 and **Hidden Rectangle**. (Ref: specs/deductive-techniques.md 1.6)
-- [ ] **Finned/Sashimi X-Wing**: Implement Finned and Sashimi variants of X-Wing. (Ref: specs/deductive-techniques.md 1.7)
+- [x] **Uniqueness Tests (3-6)**: Implement Type 3 through Type 6 and **Hidden Rectangle**. (Ref: specs/deductive-techniques.md 1.6)
+- [x] **Finned/Sashimi X-Wing**: Implement Finned and Sashimi variants of X-Wing. (Ref: specs/deductive-techniques.md 1.7)
 - [x] **Avoidable Rectangle (Type 1)** (Ref: docs/REQUIREMENTS.md 2.1)
-- [ ] **Avoidable Rectangle (Type 2)**: Implement Type 2. (Ref: docs/REQUIREMENTS.md 2.1)
+- [x] **Avoidable Rectangle (Type 2)**: Implement Type 2. (Ref: docs/REQUIREMENTS.md 2.1)
 
 ## Priority 4: Expert-Level Deductive Techniques (Unfair & Extreme)
 The "Ultra" goal of implementing advanced sets and complex chain logic to solve the most difficult puzzles.

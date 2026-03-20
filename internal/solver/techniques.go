@@ -90,10 +90,10 @@ func (s *Solver) initTechniques() {
 		{"Avoidable Rectangle", s.findAvoidableRectangles},
 		{"Unique Rectangle Type 1", s.findUniqueRectangleType1},
 		{"Unique Rectangle Type 2", s.findUniqueRectangleType2},
-		{"Unique Rectangle Type 3", nil},
-		{"Unique Rectangle Type 4", nil},
-		{"Hidden Rectangle", nil},
-		{"Finned X-Wing", nil},
+		{"Unique Rectangle Type 3", s.findUniqueRectangleType3},
+		{"Unique Rectangle Type 4", s.findUniqueRectangleType4},
+		{"Hidden Rectangle", s.findHiddenRectangle},
+		{"Finned X-Wing", s.findFinnedXWings},
 		{"Finned Swordfish", nil},
 		{"Finned Jellyfish", nil},
 		{"Sue de Coq", nil},
@@ -958,10 +958,6 @@ func (s *Solver) findAvoidableRectangles() (found bool) {
 							}
 							solvedCount++
 						} else {
-							if unsolvedIdx != -1 {
-								solvedCount = -1 // More than one unsolved
-								break
-							}
 							unsolvedIdx = i
 						}
 					}
@@ -985,6 +981,49 @@ func (s *Solver) findAvoidableRectangles() (found bool) {
 								step.DeleteCandidate(unsolved.Index(), X)
 								s.applyStep(step)
 								return true
+							}
+						}
+					} else if solvedCount == 2 {
+						// Potential Avoidable Rectangle Type 2.
+						var sIdxs, uIdxs []int
+						for i, c := range cells {
+							if c.IsSolved() {
+								sIdxs = append(sIdxs, i)
+							} else {
+								uIdxs = append(uIdxs, i)
+							}
+						}
+
+						s1, s2 := cells[sIdxs[0]], cells[sIdxs[1]]
+						u1, u2 := cells[uIdxs[0]], cells[uIdxs[1]]
+
+						X, Y := s1.Value(), s2.Value()
+						if u1.HasCandidate(X) && u1.HasCandidate(Y) && u2.HasCandidate(X) && u2.HasCandidate(Y) {
+							xy := bitset.FromValues16(X, Y)
+							e1 := u1.Candidates.Difference(xy)
+							e2 := u2.Candidates.Difference(xy)
+							commonExtra := e1.Intersection(e2)
+
+							if !commonExtra.Empty() {
+								foundElim := false
+								step := NewStep(kindAvoidableRectangle).
+									WithValues(X, Y).
+									WithIndices(cells[0].Index(), cells[1].Index(), cells[2].Index(), cells[3].Index())
+
+								commonPeers := s.commonPeers(u1.Index(), u2.Index())
+								for v := range commonExtra.All() {
+									for _, pIdx := range commonPeers {
+										if s.puzzle.Cell(pIdx).HasCandidate(v) {
+											step.DeleteCandidate(pIdx, v)
+											foundElim = true
+										}
+									}
+								}
+
+								if foundElim {
+									s.applyStep(step)
+									return true
+								}
 							}
 						}
 					}
@@ -1235,6 +1274,240 @@ func (s *Solver) checkFishForValue(
 		}
 	}
 
+	return false
+}
+
+func (s *Solver) findHiddenRectangle() (found bool) {
+	// Find all 4-cell rectangles in 2 rows, 2 columns, and 2 boxes.
+	for r1 := 0; r1 < 9; r1++ {
+		for r2 := r1 + 1; r2 < 9; r2++ {
+			for c1 := 0; c1 < 9; c1++ {
+				for c2 := c1 + 1; c2 < 9; c2++ {
+					cells := [4]*puzzle.Cell{
+						s.puzzle.Get(r1, c1), s.puzzle.Get(r1, c2),
+						s.puzzle.Get(r2, c1), s.puzzle.Get(r2, c2),
+					}
+
+					// All must be unsolved
+					allUnsolved := true
+					for _, c := range cells {
+						if c.IsSolved() {
+							allUnsolved = false
+							break
+						}
+					}
+					if !allUnsolved {
+						continue
+					}
+
+					// Must be in exactly 2 boxes
+					boxes := make(map[int]bool)
+					for _, c := range cells {
+						boxes[c.Box()] = true
+					}
+					if len(boxes) != 2 {
+						continue
+					}
+
+					// Find candidate pairs {x, y} common to all 4 cells.
+					common := cells[0].Candidates.
+						Intersection(cells[1].Candidates).
+						Intersection(cells[2].Candidates).
+						Intersection(cells[3].Candidates)
+
+					if common.Size() < 2 {
+						continue
+					}
+
+					vals := common.Values()
+					for i := 0; i < len(vals); i++ {
+						for j := i + 1; j < len(vals); j++ {
+							x, y := vals[i], vals[j]
+
+							// Check each corner as the potential target corner C1.
+							for idx1 := 0; idx1 < 4; idx1++ {
+								idx4 := idx1 ^ 3 // diagonal (C4)
+								idx2 := idx1 ^ 1 // same row (C2)
+								idx3 := idx1 ^ 2 // same column (C3)
+
+								c1, c2, c3, c4 := cells[idx1], cells[idx2], cells[idx3], cells[idx4]
+
+								// C4 must be bivalue {x, y}
+								xy := bitset.FromValues16(x, y)
+								if !c4.Candidates.Equal(xy) {
+									continue
+								}
+
+								// Check for Hidden Rectangle on candidate x (eliminate y from C1)
+								if s.checkHiddenRectangleForValue(c1, c2, c3, c4, x, y) {
+									return true
+								}
+								// Check for Hidden Rectangle on candidate y (eliminate x from C1)
+								if s.checkHiddenRectangleForValue(c1, c2, c3, c4, y, x) {
+									return true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *Solver) checkHiddenRectangleForValue(c1, c2, c3, c4 *puzzle.Cell, val, otherVal int) bool {
+	// val must be a conjugate pair in Row(c1) restricted to c1, c2.
+	row := s.rows[c1.Row]
+	if row.NumLocations(val) != 2 {
+		return false
+	}
+	if !row.Locations(val).Contains(c1.Col) || !row.Locations(val).Contains(c2.Col) {
+		return false
+	}
+
+	// val must be a conjugate pair in Col(c1) restricted to c1, c3.
+	col := s.columns[c1.Col]
+	if col.NumLocations(val) != 2 {
+		return false
+	}
+	if !col.Locations(val).Contains(c1.Row) || !col.Locations(val).Contains(c3.Row) {
+		return false
+	}
+
+	// Elimination: otherVal from c1.
+	if c1.HasCandidate(otherVal) {
+		step := NewStep(kindHiddenRectangle).
+			WithValues(val, otherVal).
+			WithIndices(c1.Index(), c2.Index(), c3.Index(), c4.Index())
+		step.DeleteCandidate(c1.Index(), otherVal)
+		s.applyStep(step)
+		return true
+	}
+	return false
+}
+
+func (s *Solver) findFinnedXWings() (found bool) {
+	check := func(baseLines, coverLines []*House) bool {
+		return s.checkFinnedXWings(baseLines, coverLines)
+	}
+	// Rows as base, columns as cover.
+	if check(s.rows, s.columns) {
+		return true
+	}
+	// Columns as base, rows as cover.
+	return check(s.columns, s.rows)
+}
+
+func (s *Solver) checkFinnedXWings(baseLines, coverLines []*House) bool {
+	for val := 1; val <= 9; val++ {
+		// Find candidate base lines with at least 2 candidates.
+		var candidates []*House
+		for _, h := range baseLines {
+			if h.NumLocations(val) >= 2 {
+				candidates = append(candidates, h)
+			}
+		}
+
+		if len(candidates) < 2 {
+			continue
+		}
+
+		// Try each pair of lines as base lines (b1, b2).
+		// Note: we try (i, j) and (j, i) because the fin can be on either one.
+		for i := 0; i < len(candidates); i++ {
+			for j := 0; j < len(candidates); j++ {
+				if i == j {
+					continue
+				}
+				b1, b2 := candidates[i], candidates[j]
+
+				// b1 must have exactly 2 candidates at L1, L2.
+				if b1.NumLocations(val) != 2 {
+					continue
+				}
+				locs1 := b1.Locations(val).Values()
+				l1, l2 := locs1[0], locs1[1]
+
+				// b2 has candidates. At least one must be at L2.
+				if !b2.Locations(val).Contains(l2) {
+					continue
+				}
+
+				// Fins are all candidates in b2 that are NOT at l2.
+				fins := b2.Locations(val).Difference(bitset.FromValues16(l2))
+				if fins.Empty() {
+					continue
+				}
+
+				// If it's a perfect X-Wing, b2.Locations(val) would be {l1, l2}.
+				// A Finned X-Wing has additional candidates in b2, but they
+				// must all be in the same box as (b2, l1).
+				corner21 := b2.Cells[l1]
+				boxIdx := corner21.Box()
+
+				allFinsInBox := true
+				for _, finLoc := range fins.Values() {
+					if b2.Cells[finLoc].Box() != boxIdx {
+						allFinsInBox = false
+						break
+					}
+				}
+
+				if allFinsInBox {
+					// Found a Finned/Sashimi X-Wing!
+					// Elimination: Cells in Box(boxIdx) that are on cover line l1
+					// (excluding corners themselves).
+					step := NewStep(kindFinnedXWing).
+						WithValues(val).
+						WithBases(b1, b2).
+						WithCovers(coverLines[l1], coverLines[l2])
+
+					foundElim := false
+					box := s.boxes[boxIdx]
+					for _, cell := range box.Cells {
+						// Identify cover line index.
+						var cellLineIdx int
+						if b1.Kind == kindRow {
+							cellLineIdx = cell.Col
+						} else {
+							cellLineIdx = cell.Row
+						}
+
+						if cellLineIdx != l1 {
+							continue
+						}
+
+						// Cannot be the corner from base b1.
+						if cell.Index() == b1.Cells[l1].Index() {
+							continue
+						}
+						// Cannot be any cell in b2 (the fish line itself).
+						if (b1.Kind == kindRow && cell.Row == b2.Index) ||
+							(b1.Kind == kindColumn && cell.Col == b2.Index) {
+
+							continue
+						}
+
+						if cell.HasCandidate(val) {
+							step.DeleteCandidate(cell.Index(), val)
+							foundElim = true
+						}
+					}
+
+					if foundElim {
+						// Collect indices for highlighting.
+						indices := []int{b1.Cells[l1].Index(), b1.Cells[l2].Index(), b2.Cells[l2].Index()}
+						for _, fLoc := range fins.Values() {
+							indices = append(indices, b2.Cells[fLoc].Index())
+						}
+						s.applyStep(step.WithIndices(indices...))
+						return true
+					}
+				}
+			}
+		}
+	}
 	return false
 }
 
@@ -1490,7 +1763,6 @@ func (s *Solver) findUniqueRectangleType1() (found bool) {
 	// corner of a unique rectangle.
 	for r := range 9 {
 		for c := range 9 {
-			// TODO: r,c or index?
 			cell := b.Get(r, c)
 			if cell.NumCandidates() != 2 {
 				continue
@@ -1563,7 +1835,6 @@ func (s *Solver) findUniqueRectangleType2() (found bool) {
 		for r2 := r1 + 1; r2 < 9; r2++ {
 			for c1 := 0; c1 < 9; c1++ {
 				for c2 := c1 + 1; c2 < 9; c2++ {
-					// Corners: (r1,c1), (r1,c2), (r2,c1), (r2,c2)
 					cells := [4]*puzzle.Cell{
 						s.puzzle.Get(r1, c1), s.puzzle.Get(r1, c2),
 						s.puzzle.Get(r2, c1), s.puzzle.Get(r2, c2),
@@ -1591,8 +1862,6 @@ func (s *Solver) findUniqueRectangleType2() (found bool) {
 					}
 
 					// Find candidate pairs {x, y} common to all 4 cells.
-					// For UR Type 2, two cells must have exactly {x, y}
-					// and the other two cells must have {x, y, z}.
 					common := cells[0].Candidates.
 						Intersection(cells[1].Candidates).
 						Intersection(cells[2].Candidates).
@@ -1602,7 +1871,6 @@ func (s *Solver) findUniqueRectangleType2() (found bool) {
 						continue
 					}
 
-					// Try each pair of candidates in common
 					vals := common.Values()
 					for i := 0; i < len(vals); i++ {
 						for j := i + 1; j < len(vals); j++ {
@@ -1652,8 +1920,307 @@ func (s *Solver) findUniqueRectangleType2() (found bool) {
 	return false
 }
 
-// eliminateValuesFromCell removes all candidates listed in values from the cell
-// at (r,c).
+func (s *Solver) findUniqueRectangleType3() (found bool) {
+	// Find all 4-cell rectangles in 2 rows, 2 columns, and 2 boxes.
+	for r1 := 0; r1 < 9; r1++ {
+		for r2 := r1 + 1; r2 < 9; r2++ {
+			for c1 := 0; c1 < 9; c1++ {
+				for c2 := c1 + 1; c2 < 9; c2++ {
+					cells := [4]*puzzle.Cell{
+						s.puzzle.Get(r1, c1), s.puzzle.Get(r1, c2),
+						s.puzzle.Get(r2, c1), s.puzzle.Get(r2, c2),
+					}
+
+					// All must be unsolved
+					allUnsolved := true
+					for _, c := range cells {
+						if c.IsSolved() {
+							allUnsolved = false
+							break
+						}
+					}
+					if !allUnsolved {
+						continue
+					}
+
+					// Must be in exactly 2 boxes
+					boxes := make(map[int]bool)
+					for _, c := range cells {
+						boxes[c.Box()] = true
+					}
+					if len(boxes) != 2 {
+						continue
+					}
+
+					// Find candidate pairs {x, y} common to all 4 cells.
+					common := cells[0].Candidates.
+						Intersection(cells[1].Candidates).
+						Intersection(cells[2].Candidates).
+						Intersection(cells[3].Candidates)
+
+					if common.Size() < 2 {
+						continue
+					}
+
+					vals := common.Values()
+					for i := 0; i < len(vals); i++ {
+						for j := i + 1; j < len(vals); j++ {
+							x, y := vals[i], vals[j]
+							xy := bitset.FromValues16(x, y)
+
+							var bivalueCells, extraCells []*puzzle.Cell
+							for _, c := range cells {
+								if c.Candidates.Equal(xy) {
+									bivalueCells = append(bivalueCells, c)
+								} else {
+									extraCells = append(extraCells, c)
+								}
+							}
+
+							if len(bivalueCells) == 2 && len(extraCells) == 2 {
+								var h *House
+								if extraCells[0].Row == extraCells[1].Row {
+									h = s.rows[extraCells[0].Row]
+								} else if extraCells[0].Col == extraCells[1].Col {
+									h = s.columns[extraCells[0].Col]
+								}
+
+								if h == nil {
+									continue
+								}
+
+								extraCandidates := bitset.Union(extraCells[0].Candidates, extraCells[1].Candidates).
+									Difference(xy)
+
+								if extraCandidates.Empty() {
+									continue
+								}
+
+								if s.checkURType3NakedSubset(h, extraCells, cells[:], extraCandidates, xy) {
+									return true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *Solver) checkURType3NakedSubset(
+	h *House,
+	urExtraCells []*puzzle.Cell,
+	urCells []*puzzle.Cell,
+	extraCandidates ValSet,
+	xy ValSet,
+) bool {
+	K := extraCandidates.Size()
+	if K > 4 {
+		return false
+	}
+
+	// Try subset sizes N from K up to 4.
+	for N := K; N <= 4; N++ {
+		var potentialCells []*puzzle.Cell
+		for _, cell := range h.Cells {
+			if cell.IsSolved() {
+				continue
+			}
+			if cell.Index() == urExtraCells[0].Index() || cell.Index() == urExtraCells[1].Index() {
+				continue
+			}
+			if cell.NumCandidates() <= N && cell.Candidates.Intersects(extraCandidates) {
+				potentialCells = append(potentialCells, cell)
+			}
+		}
+
+		if len(potentialCells) < N-1 {
+			continue
+		}
+
+		if s.findURType3SubsetCombination(h, urExtraCells, urCells, extraCandidates, potentialCells, N, xy) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Solver) findURType3SubsetCombination(
+	h *House,
+	urExtraCells []*puzzle.Cell,
+	urCells []*puzzle.Cell,
+	extraCandidates ValSet,
+	potentialCells []*puzzle.Cell,
+	N int,
+	xy ValSet,
+) bool {
+	var check func(start int, current []*puzzle.Cell) bool
+	check = func(start int, current []*puzzle.Cell) bool {
+		if len(current) == N-1 {
+			union := extraCandidates
+			for _, c := range current {
+				union = bitset.Union(union, c.Candidates)
+			}
+
+			if union.Size() == N {
+				subsetLocs := bitset.BitSet16(0)
+				subsetLocs.Add(h.locFromIndex(urExtraCells[0].Index()))
+				subsetLocs.Add(h.locFromIndex(urExtraCells[1].Index()))
+				for _, c := range current {
+					subsetLocs.Add(h.locFromIndex(c.Index()))
+				}
+
+				step := NewStep(kindUniqueRectangle3).
+					WithValues(xy.Values()...).
+					WithHouse(h)
+
+				if s.eliminateFromOtherLocs(h, union, subsetLocs, step) {
+					indices := make([]int, 0, 4+len(current))
+					for _, c := range urCells {
+						indices = append(indices, c.Index())
+					}
+					for _, c := range current {
+						indices = append(indices, c.Index())
+					}
+					s.applyStep(step.WithIndices(indices...))
+					return true
+				}
+			}
+			return false
+		}
+
+		for i := start; i < len(potentialCells); i++ {
+			if check(i+1, append(current, potentialCells[i])) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return check(0, nil)
+}
+
+func (s *Solver) findUniqueRectangleType4() (found bool) {
+	// Find all 4-cell rectangles in 2 rows, 2 columns, and 2 boxes.
+	for r1 := 0; r1 < 9; r1++ {
+		for r2 := r1 + 1; r2 < 9; r2++ {
+			for c1 := 0; c1 < 9; c1++ {
+				for c2 := c1 + 1; c2 < 9; c2++ {
+					cells := [4]*puzzle.Cell{
+						s.puzzle.Get(r1, c1), s.puzzle.Get(r1, c2),
+						s.puzzle.Get(r2, c1), s.puzzle.Get(r2, c2),
+					}
+
+					// All must be unsolved
+					allUnsolved := true
+					for _, c := range cells {
+						if c.IsSolved() {
+							allUnsolved = false
+							break
+						}
+					}
+					if !allUnsolved {
+						continue
+					}
+
+					// Must be in exactly 2 boxes
+					boxes := make(map[int]bool)
+					for _, c := range cells {
+						boxes[c.Box()] = true
+					}
+					if len(boxes) != 2 {
+						continue
+					}
+
+					// Find candidate pairs {x, y} common to all 4 cells.
+					common := cells[0].Candidates.
+						Intersection(cells[1].Candidates).
+						Intersection(cells[2].Candidates).
+						Intersection(cells[3].Candidates)
+
+					if common.Size() < 2 {
+						continue
+					}
+
+					vals := common.Values()
+					for i := 0; i < len(vals); i++ {
+						for j := i + 1; j < len(vals); j++ {
+							x, y := vals[i], vals[j]
+							xy := bitset.FromValues16(x, y)
+
+							var bivalueCells, extraCells []*puzzle.Cell
+							for _, c := range cells {
+								if c.Candidates.Equal(xy) {
+									bivalueCells = append(bivalueCells, c)
+								} else {
+									extraCells = append(extraCells, c)
+								}
+							}
+
+							if len(bivalueCells) == 2 && len(extraCells) == 2 {
+								// Type 4: One of the candidates (x or y) must be a conjugate pair
+								// in a house shared by the extraCells.
+								for _, val := range []int{x, y} {
+									otherVal := x
+									if val == x {
+										otherVal = y
+									}
+
+									// Find shared house of extraCells.
+									var houses []*House
+									if extraCells[0].Row == extraCells[1].Row {
+										houses = append(houses, s.rows[extraCells[0].Row])
+									}
+									if extraCells[0].Col == extraCells[1].Col {
+										houses = append(houses, s.columns[extraCells[0].Col])
+									}
+
+									for _, h := range houses {
+										// Is val a conjugate pair in this house, restricted to the two extraCells?
+										if h.NumLocations(val) == 2 {
+											locs := h.Locations(val).Values()
+											c1Idx := h.Cells[locs[0]].Index()
+											c2Idx := h.Cells[locs[1]].Index()
+
+											if (c1Idx == extraCells[0].Index() && c2Idx == extraCells[1].Index()) ||
+												(c1Idx == extraCells[1].Index() && c2Idx == extraCells[0].Index()) {
+
+												// Elimination: otherVal can be removed from extraCells.
+												step := NewStep(kindUniqueRectangle4).
+													WithValues(x, y).
+													WithHouse(h)
+
+												foundElim := false
+												for _, c := range extraCells {
+													if c.HasCandidate(otherVal) {
+														step.DeleteCandidate(c.Index(), otherVal)
+														foundElim = true
+													}
+												}
+
+												if foundElim {
+													s.applyStep(step.WithIndices(
+														cells[0].Index(), cells[1].Index(),
+														cells[2].Index(), cells[3].Index(),
+													))
+													return true
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (s *Solver) eliminateValuesFromCell(
 	r, c int, values ValSet, step *SolutionStep,
 ) bool {

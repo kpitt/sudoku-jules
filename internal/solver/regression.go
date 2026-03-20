@@ -66,6 +66,11 @@ func runTestCase(line string) (bool, error) {
 	parts := strings.Split(line, ":")
 	// :technique:candidates:givens:deleted:eliminations:placements:extra
 	targetTechID := parts[1]
+	// Strip suffixes like -1, -2, -x
+	if idx := strings.Index(targetTechID, "-"); idx != -1 {
+		targetTechID = targetTechID[:idx]
+	}
+
 	targetCandidatesStr := parts[2]
 	expectedElimsStr := parts[5]
 	expectedPlacementsStr := parts[6]
@@ -235,7 +240,7 @@ func formatCandidates(cs []Candidate) string {
 
 func techName(k techniqueKind) string {
 	names := []string{
-		"Naked Single", "Hidden Single", "Locked Candidates (Pointing)", "Locked Candidates (Claiming)",
+		"Full House", "Naked Single", "Hidden Single", "Locked Candidates (Pointing)", "Locked Candidates (Claiming)",
 		"Naked Pair", "Naked Triple", "Hidden Pair", "Hidden Triple", "Naked Quadruple", "Hidden Quadruple",
 		"X-Wing", "Swordfish", "Jellyfish", "Remote Pair", "BUG+1", "Skyscraper", "2-String Kite",
 		"Empty Rectangle", "W-Wing", "XY-Wing", "XYZ-Wing", "Avoidable Rectangle",
@@ -250,9 +255,11 @@ func techName(k techniqueKind) string {
 }
 
 var hodokuIDToKind = map[string]techniqueKind{
-	"0000": kindFullHouse, // I need to add this to techniqueKind
+	"0000": kindFullHouse,
 	"0003": kindNakedSingle,
 	"0002": kindHiddenSingle,
+	"0110": kindNakedPair,
+	"0111": kindNakedTriple,
 	"0100": kindLockedCandidatesPointing,
 	"0101": kindLockedCandidatesClaiming,
 	"0200": kindNakedPair,
@@ -265,18 +272,25 @@ var hodokuIDToKind = map[string]techniqueKind{
 	"0301": kindSwordfish,
 	"0302": kindJellyfish,
 	"0310": kindFinnedXWing,
+	"0320": kindFinnedXWing, // Sashimi handled by Finned
 	"0311": kindFinnedSwordfish,
+	"0321": kindFinnedSwordfish,
 	"0312": kindFinnedJellyfish,
+	"0322": kindFinnedJellyfish,
 	"0400": kindSkyscraper,
 	"0401": kindTwoStringKite,
 	"0402": kindEmptyRectangle,
+	"0703": kindRemotePair,
+	"0610": kindBUG,
+	"0803": kindWWing,
+	"0800": kindXYWing,
+	"0801": kindXYZWing,
 	"0600": kindUniqueRectangle1,
 	"0601": kindUniqueRectangle2,
 	"0602": kindUniqueRectangle3,
 	"0603": kindUniqueRectangle4,
 	"0606": kindHiddenRectangle,
 	"0607": kindAvoidableRectangle,
-	"0800": kindXYWing,
-	"0801": kindXYZWing,
+	"0608": kindAvoidableRectangle, // AR Type 2 handled by same func
 	"1101": kindSueDeCoq,
 }
