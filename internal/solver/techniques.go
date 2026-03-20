@@ -60,6 +60,8 @@ const (
 	kindALSXZ
 	kindALSXYWing
 	kindALSXYChain
+	kindForcingChain
+	kindForcingNet
 	kindBruteForce
 )
 
@@ -123,6 +125,8 @@ func (s *Solver) initTechniques() {
 		{"ALS-XZ", s.findALSXZ},
 		{"ALS-XY-Wing", s.findALSXYWing},
 		{"ALS-XY-Chain", s.findALSXYChain},
+		{"Forcing Chain", s.findForcingChains},
+		{"Forcing Net", s.findForcingNets},
 		{"Brute Force", nil}, // custom check as last resort
 	}
 }

@@ -1,5 +1,9 @@
 package solver
 
+import (
+	"fmt"
+)
+
 // aicNode represents a literal in the implication graph.
 // It is encoded as (literalIndex * 2) + (isTrue ? 1 : 0).
 type aicNode int
@@ -384,6 +388,163 @@ func (s *Solver) findALSXYChain() bool {
 		useBivalueCells: true,
 		useGroupedLinks: true,
 	}, alsList)
+}
+
+func (s *Solver) findForcingChains() bool {
+	alsList := s.findALSs()
+	return s.findChains(0, kindForcingChain, chainOptions{
+		useStrongLinks:  true,
+		useWeakLinks:    true,
+		useBivalueCells: true,
+		useGroupedLinks: true,
+	}, alsList)
+}
+
+func (s *Solver) findForcingNets() bool {
+	fmt.Println("Checking Forcing Nets...")
+	alsList := s.findALSs()
+	numALSLits := len(alsList) * 9
+	gb := newGraphBuilder(s, numALSLits)
+	gb.build(0, chainOptions{
+		useStrongLinks:  true,
+		useWeakLinks:    true,
+		useBivalueCells: true,
+		useGroupedLinks: true,
+	}, alsList)
+
+	// 1. Cell Forcing Nets: For each cell, if all its candidates lead to the same implication.
+	for c := 0; c < 81; c++ {
+		cell := s.puzzle.Cell(c)
+		if cell.IsSolved() || cell.NumCandidates() < 2 {
+			continue
+		}
+
+		candidates := cell.CandidateValues()
+		reachableSets := make([]map[aicNode]bool, len(candidates))
+		for i, v := range candidates {
+			reachableSets[i] = s.getReachableNodes(gb.adj, node(cellLit(c, v), true))
+		}
+
+		if s.checkForcingNetImplications(kindForcingNet, reachableSets, []int{c}, intersectionToStep) {
+			fmt.Printf("Found Forcing Net at cell r%dc%d\n", c/9+1, c%9+1)
+			return true
+		}
+	}
+
+	// 2. House Forcing Nets: For each house and digit, if all possible locations lead to the same implication.
+	for _, h := range s.houses {
+		for v := 1; v <= 9; v++ {
+			locs := h.Unsolved[v].Values()
+			if len(locs) < 2 {
+				continue
+			}
+
+			reachableSets := make([]map[aicNode]bool, len(locs))
+			baseIndices := make([]int, len(locs))
+			for i, loc := range locs {
+				cIdx := h.Cells[loc].Index()
+				baseIndices[i] = cIdx
+				reachableSets[i] = s.getReachableNodes(gb.adj, node(cellLit(cIdx, v), true))
+			}
+
+			if s.checkForcingNetImplications(kindForcingNet, reachableSets, baseIndices, intersectionToStep) {
+				fmt.Printf("Found Forcing Net in house %s for digit %d\n", formatHouse(h), v)
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+type forcingNetHandler func(s *Solver, kind techniqueKind, intersection map[aicNode]bool, baseIndices []int) bool
+
+func (s *Solver) checkForcingNetImplications(
+	kind techniqueKind,
+	reachableSets []map[aicNode]bool,
+	baseIndices []int,
+	handler forcingNetHandler,
+) bool {
+	if len(reachableSets) == 0 {
+		return false
+	}
+
+	// Find intersection of all reachableSets
+	intersection := make(map[aicNode]bool)
+	for n := range reachableSets[0] {
+		inAll := true
+		for i := 1; i < len(reachableSets); i++ {
+			if !reachableSets[i][n] {
+				inAll = false
+				break
+			}
+		}
+		if inAll {
+			intersection[n] = true
+		}
+	}
+
+	return handler(s, kind, intersection, baseIndices)
+}
+
+func intersectionToStep(s *Solver, kind techniqueKind, intersection map[aicNode]bool, baseIndices []int) bool {
+	for n := range intersection {
+		lit := int(n) / 2
+		isTrue := int(n)%2 == 1
+		if lit < numCellLits {
+			tcIdx, tvIdx := lit/9, lit%9+1
+			tCell := s.puzzle.Cell(tcIdx)
+			if tCell.IsSolved() {
+				continue
+			}
+
+			// Avoid trivial implications (the base itself)
+			isBase := false
+			for _, bIdx := range baseIndices {
+				if bIdx == tcIdx {
+					isBase = true
+					break
+				}
+			}
+			if isBase {
+				continue
+			}
+
+			if isTrue {
+				step := NewStep(kind).
+					WithPlacedValue(tcIdx, tvIdx).
+					WithIndices(baseIndices...)
+				s.applyStep(step)
+				return true
+			} else {
+				if tCell.HasCandidate(tvIdx) {
+					step := NewStep(kind).
+						WithIndices(baseIndices...)
+					step.DeleteCandidate(tcIdx, tvIdx)
+					s.applyStep(step)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *Solver) getReachableNodes(adj [][]aicNode, start aicNode) map[aicNode]bool {
+	reachable := make(map[aicNode]bool)
+	queue := []aicNode{start}
+	reachable[start] = true
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+		for _, next := range adj[curr] {
+			if !reachable[next] {
+				reachable[next] = true
+				queue = append(queue, next)
+			}
+		}
+	}
+	return reachable
 }
 
 func (s *Solver) findChains(singleDigit int, kind techniqueKind, options chainOptions, alsList []als) bool {

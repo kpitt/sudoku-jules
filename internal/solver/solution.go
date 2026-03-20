@@ -82,7 +82,7 @@ func (step *SolutionStep) IsSingle() bool {
 		step.technique == kindNakedSingle ||
 		step.technique == kindHiddenSingle ||
 		step.technique == kindBruteForce ||
-		((step.technique == kindAIC || step.technique == kindNiceLoop) && len(step.values) == 1 && len(step.indices) == 1 && len(step.deletedCandidates) == 0)
+		((step.technique == kindAIC || step.technique == kindNiceLoop || step.technique == kindForcingChain || step.technique == kindForcingNet) && len(step.values) == 1 && len(step.indices) == 1 && len(step.deletedCandidates) == 0)
 }
 
 // DeleteCandidate adds a candidate to be deleted by this solution step.
@@ -183,8 +183,11 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 	case kindXChain, kindXYChain, kindALSXYChain:
 		return step.formatChain()
 
-	case kindNiceLoop, kindAIC:
+	case kindNiceLoop, kindAIC, kindForcingChain:
 		return step.formatAIC()
+
+	case kindForcingNet:
+		return step.formatForcingNet()
 
 	case kindALSXZ, kindALSXYWing:
 		return step.formatALS()
@@ -350,6 +353,13 @@ func (step *SolutionStep) formatAIC() string {
 			puzzle.FormatCell(step.indices[len(step.indices)-1]))
 	}
 	return step.formatDeletedCandidates()
+}
+
+func (step *SolutionStep) formatForcingNet() string {
+	if len(step.placedCandidates) > 0 {
+		return fmt.Sprintf("%s from net %s", step.formatPlacedCandidates(), step.formatIndices())
+	}
+	return fmt.Sprintf("%s from net %s", step.formatDeletedCandidates(), step.formatIndices())
 }
 
 func (step *SolutionStep) formatALS() string {
