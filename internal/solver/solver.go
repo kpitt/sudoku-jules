@@ -14,7 +14,7 @@ type (
 		puzzle *puzzle.Puzzle
 		*Options
 
-		techniques [38]Technique
+		techniques []Technique
 
 		rows    [9]*House
 		columns [9]*House

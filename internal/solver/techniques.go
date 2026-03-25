@@ -66,7 +66,7 @@ type Technique struct {
 // TODO: Implement Bitwise Techniques: Rewrite all solver techniques to use bitwise logic (POPCNT, AND, OR, XOR).
 func (s *Solver) initTechniques() {
 	// The order of this list must match the order of the techniqueKind constants.
-	s.techniques = [38]Technique{
+	s.techniques = []Technique{
 		{"Naked Single", nil}, // checked during candidate removal
 		{"Hidden Single", s.findHiddenSingles},
 		{"Locked Candidates Type 1 (Pointing)", s.findPointingTuples},
