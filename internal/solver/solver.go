@@ -16,15 +16,15 @@ type (
 
 		techniques []Technique
 
-		rows    []*House
-		columns []*House
-		boxes   []*House
+		rows    [9]*House
+		columns [9]*House
+		boxes   [9]*House
 
 		// Many techniques need to be applied to all lines (rows and columns) or
 		// all houses.  We can simplify those checks by precalulating a list for
 		// each of those sets.
-		lines  []*House // all rows and columns
-		houses []*House // all rows, columns, and boxes
+		lines  [18]*House // all rows and columns
+		houses [27]*House // all rows, columns, and boxes
 
 		solution []*SolutionStep
 
@@ -67,16 +67,18 @@ func NewSolver(p *puzzle.Puzzle, opts *Options) *Solver {
 
 	for i := range 9 {
 		row := NewHouse(kindRow, i)
-		s.rows = append(s.rows, row)
-		s.lines = append(s.lines, row)
-		s.houses = append(s.houses, row)
+		s.rows[i] = row
+		s.lines[i] = row
+		s.houses[i] = row
+
 		col := NewHouse(kindColumn, i)
-		s.columns = append(s.columns, col)
-		s.lines = append(s.lines, col)
-		s.houses = append(s.houses, col)
+		s.columns[i] = col
+		s.lines[9+i] = col
+		s.houses[9+i] = col
+
 		box := NewHouse(kindBox, i)
-		s.boxes = append(s.boxes, box)
-		s.houses = append(s.houses, box)
+		s.boxes[i] = box
+		s.houses[18+i] = box
 	}
 
 	// Collect the cells that belong to each house.
@@ -110,7 +112,6 @@ func (s *Solver) processInitialValues() {
 // Solve attempts to solve a Sudoku puzzle by first applying known deductive
 // solving techniques. If those don't solve the puzzle completely, it falls back
 // to using the Dancing Links algorithm as a last resort.
-// TODO: Implement Branchless Iteration: Update loops to use fixed-size array iteration.
 func (s *Solver) Solve() {
 	defer s.solveTimer(time.Now())
 

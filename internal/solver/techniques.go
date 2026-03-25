@@ -154,7 +154,7 @@ func (s *Solver) checkHiddenSinglesForHouse(h *House) bool {
 }
 
 func (s *Solver) findNakedSubsets(size int, kind techniqueKind) (found bool) {
-	return slices.ContainsFunc(s.houses, func(h *House) bool {
+	return slices.ContainsFunc(s.houses[:], func(h *House) bool {
 		return s.checkNakedSubsetsForHouse(size, kind, h)
 	})
 }
@@ -359,7 +359,7 @@ func (s *Solver) checkPointingTuplesForBox(box *House) (found bool) {
 }
 
 func (s *Solver) findHiddenSubsets(size int, kind techniqueKind) (found bool) {
-	return slices.ContainsFunc(s.houses, func(h *House) bool {
+	return slices.ContainsFunc(s.houses[:], func(h *House) bool {
 		return s.checkHiddenSubsetsForHouse(size, kind, h)
 	})
 }
@@ -923,7 +923,7 @@ func (s *Solver) findFishOfSize(fishSize int, fishKind techniqueKind) (found boo
 	find := func(baseLines, coverLines []*House) bool {
 		return s.findFishInLines(fishSize, fishKind, baseLines, coverLines)
 	}
-	return find(s.rows, s.columns) || find(s.columns, s.rows)
+	return find(s.rows[:], s.columns[:]) || find(s.columns[:], s.rows[:])
 }
 
 func (s *Solver) findFishInLines(
@@ -1032,7 +1032,7 @@ func (s *Solver) findSkyscraper() (found bool) {
 	// We check for Skyscrapers where the base lines are rows (meaning the strong
 	// links are horizontal) and then where the base lines are columns (vertical
 	// strong links).
-	return check(s.rows) || check(s.columns)
+	return check(s.rows[:]) || check(s.columns[:])
 }
 
 func (s *Solver) checkSkyscraper(baseLines []*House) (found bool) {
