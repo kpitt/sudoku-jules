@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/kpitt/sudoku/internal/puzzle"
 )
@@ -233,15 +234,15 @@ func (step *SolutionStep) formatDeletedCandidates() string {
 	// Then, process the values in order and format each list of candidates.
 	orderedValues := mapKeys(locsByValue)
 	slices.Sort(orderedValues)
-	var result string
+	var result strings.Builder
 	for i, v := range orderedValues {
 		if i > 0 {
-			result += ", "
+			result.WriteString(", ")
 		}
-		result += formatCellsCompact(locsByValue[v])
-		result += fmt.Sprintf("<>%d", v)
+		result.WriteString(formatCellsCompact(locsByValue[v]))
+		fmt.Fprintf(&result, "<>%d", v)
 	}
-	return result
+	return result.String()
 }
 
 // formatValuesList formats all values of the step as a comma-separated list in
