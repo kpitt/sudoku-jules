@@ -1,9 +1,5 @@
 package solver
 
-import (
-	"fmt"
-)
-
 // aicNode represents a literal in the implication graph.
 // It is encoded as (literalIndex * 2) + (isTrue ? 1 : 0).
 type aicNode int
@@ -401,7 +397,6 @@ func (s *Solver) findForcingChains() bool {
 }
 
 func (s *Solver) findForcingNets() bool {
-	fmt.Println("Checking Forcing Nets...")
 	alsList := s.findALSs()
 	numALSLits := len(alsList) * 9
 	gb := newGraphBuilder(s, numALSLits)
@@ -426,7 +421,6 @@ func (s *Solver) findForcingNets() bool {
 		}
 
 		if s.checkForcingNetImplications(kindForcingNet, reachableSets, []int{c}, intersectionToStep) {
-			fmt.Printf("Found Forcing Net at cell r%dc%d\n", c/9+1, c%9+1)
 			return true
 		}
 	}
@@ -448,7 +442,6 @@ func (s *Solver) findForcingNets() bool {
 			}
 
 			if s.checkForcingNetImplications(kindForcingNet, reachableSets, baseIndices, intersectionToStep) {
-				fmt.Printf("Found Forcing Net in house %s for digit %d\n", formatHouse(h), v)
 				return true
 			}
 		}
@@ -488,6 +481,8 @@ func (s *Solver) checkForcingNetImplications(
 }
 
 func intersectionToStep(s *Solver, kind techniqueKind, intersection map[aicNode]bool, baseIndices []int) bool {
+	step := NewStep(kind).WithIndices(baseIndices...)
+	found := false
 	for n := range intersection {
 		lit := int(n) / 2
 		isTrue := int(n)%2 == 1
@@ -511,21 +506,19 @@ func intersectionToStep(s *Solver, kind techniqueKind, intersection map[aicNode]
 			}
 
 			if isTrue {
-				step := NewStep(kind).
-					WithPlacedValue(tcIdx, tvIdx).
-					WithIndices(baseIndices...)
-				s.applyStep(step)
-				return true
+				step.PlaceCandidate(tcIdx, tvIdx)
+				found = true
 			} else {
 				if tCell.HasCandidate(tvIdx) {
-					step := NewStep(kind).
-						WithIndices(baseIndices...)
 					step.DeleteCandidate(tcIdx, tvIdx)
-					s.applyStep(step)
-					return true
+					found = true
 				}
 			}
 		}
+	}
+	if found {
+		s.applyStep(step)
+		return true
 	}
 	return false
 }

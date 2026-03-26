@@ -338,28 +338,38 @@ func (step *SolutionStep) formatSueDeCoq() string {
 		step.formatValuesList(), step.formatIndices())
 }
 
+func (step *SolutionStep) formatResults() string {
+	placements := step.formatPlacedCandidates()
+	eliminations := step.formatDeletedCandidates()
+	if placements != "" && eliminations != "" {
+		return fmt.Sprintf("%s, %s", placements, eliminations)
+	}
+	if placements != "" {
+		return placements
+	}
+	return eliminations
+}
+
 func (step *SolutionStep) formatChain() string {
 	if len(step.values) > 0 {
-		return step.formatElimination("%d in chain %s", step.values[0],
-			step.formatIndices())
+		return fmt.Sprintf("%d in chain %s => %s", step.values[0],
+			step.formatIndices(), step.formatResults())
 	}
-	return step.formatElimination("chain %s", step.formatIndices())
+	return fmt.Sprintf("chain %s => %s", step.formatIndices(), step.formatResults())
 }
 
 func (step *SolutionStep) formatAIC() string {
 	if len(step.indices) >= 2 {
-		return step.formatElimination("%s in chain %s...%s",
+		return fmt.Sprintf("%s in chain %s...%s => %s",
 			step.formatValuesList(), puzzle.FormatCell(step.indices[0]),
-			puzzle.FormatCell(step.indices[len(step.indices)-1]))
+			puzzle.FormatCell(step.indices[len(step.indices)-1]),
+			step.formatResults())
 	}
-	return step.formatDeletedCandidates()
+	return step.formatResults()
 }
 
 func (step *SolutionStep) formatForcingNet() string {
-	if len(step.placedCandidates) > 0 {
-		return fmt.Sprintf("%s from net %s", step.formatPlacedCandidates(), step.formatIndices())
-	}
-	return fmt.Sprintf("%s from net %s", step.formatDeletedCandidates(), step.formatIndices())
+	return fmt.Sprintf("net %s => %s", step.formatIndices(), step.formatResults())
 }
 
 func (step *SolutionStep) formatALS() string {
