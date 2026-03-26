@@ -2,7 +2,7 @@
 0b. Study @IMPLEMENTATION_PLAN.md.
 0c. For reference, the application source code is in `cmd/*` and library package source code is in `internal/*`.
 
-1. Your task is to implement functionality per the specifications using parallel subagents. Follow @IMPLEMENTATION_PLAN.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents. Use parallel subagents for searches/reads but only 1 subagent for build/tests. Use subagents when complex reasoning is needed (debugging, architectural decisions).
+1. Your task is to implement functionality per the specifications using parallel subagents. Follow @IMPLEMENTATION_PLAN.md and choose the most important item to address. Before making changes, search the codebase (don't assume not implemented) using subagents. Use parallel subagents for searches/reads but only 1 subagent for build/tests. Use subagents when complex reasoning is needed (debugging, architectural decisions). When **all** tasks in @IMPLEMENTATION_PLAN.md have been fully completed and verified, and there are no remaining tasks for you to select, then you must respond with "<promise>DONE</promise>" to exit the loop.
 2. After implementing functionality or resolving problems, run the tests for that unit of code that was improved. If functionality is missing then it's your job to add it as per the application specifications. Ultrathink.
 3. When you discover issues, immediately update @IMPLEMENTATION_PLAN.md with your findings using a subagent. When resolved, update and remove the item.
 4. When the tests pass, update @IMPLEMENTATION_PLAN.md, then `git add -A` then `git commit` with a message describing the changes. After the commit, `git push`.
