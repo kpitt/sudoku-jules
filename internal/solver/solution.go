@@ -133,8 +133,7 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 		// TODO: not implemented yet
 		break
 	case kindSimpleColoring:
-		// TODO: not implemented yet
-		break
+		return step.formatSimpleColoring()
 
 	case kindBruteForce:
 		return step.formatPlacedValue()
@@ -217,6 +216,10 @@ func (step *SolutionStep) formatSkyscraperOrKite() string {
 	// in indices 2 and 3.
 	return step.formatElimination("%d in %s (connected by %s)", step.values[0],
 		step.formatIndexRange(0, 1), step.formatIndexRange(2, 3))
+}
+
+func (step *SolutionStep) formatSimpleColoring() string {
+	return step.formatElimination("%d on %s", step.values[0], step.formatIndices())
 }
 
 func (step *SolutionStep) formatUniqueRectangle() string {
