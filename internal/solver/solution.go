@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"slices"
+	"unicode/utf8"
 
 	"github.com/kpitt/sudoku/internal/puzzle"
 )
@@ -154,12 +155,11 @@ func (s *Solver) formatNamedStep(step *SolutionStep, desc string) string {
 	if desc == "" {
 		return name
 	}
-	return fmt.Sprintf("%s: %s", name, desc)
+	return name + ": " + desc
 }
 
 func (step *SolutionStep) formatHiddenSingle() string {
-	return fmt.Sprintf("%d in %s => %s",
-		step.values[0], formatHouse(step.house), step.formatPlacedValue())
+	return string([]byte{byte('0' + step.values[0])}) + " in " + formatHouse(step.house) + " => " + step.formatPlacedValue()
 }
 
 func (step *SolutionStep) formatPlacedValue() string {
@@ -169,12 +169,11 @@ func (step *SolutionStep) formatPlacedValue() string {
 
 	// index references a cell as a single value in the range 0-80, where
 	// index = r*9 + c, so we need to convert it back to a row and column.
-	return fmt.Sprintf("%s=%d", puzzle.FormatCell(step.indices[0]), step.values[0])
+	return puzzle.FormatCell(step.indices[0]) + "=" + string([]byte{byte('0' + step.values[0])})
 }
 
 func (step *SolutionStep) formatElimination(format string, a ...any) string {
-	return fmt.Sprintf("%s => %s",
-		fmt.Sprintf(format, a...), step.formatDeletedCandidates())
+	return fmt.Sprintf(format, a...) + " => " + step.formatDeletedCandidates()
 }
 
 func (step *SolutionStep) formatNakedOrHiddenSubset() string {
@@ -239,7 +238,7 @@ func (step *SolutionStep) formatDeletedCandidates() string {
 			result += ", "
 		}
 		result += formatCellsCompact(locsByValue[v])
-		result += fmt.Sprintf("<>%d", v)
+		result += "<>" + string([]byte{byte('0' + v)})
 	}
 	return result
 }
@@ -365,11 +364,11 @@ func formatRectCompact(cells []int) string {
 		}
 	}
 
-	return fmt.Sprintf("r%d%dc%d%d", r1+1, r2+1, c1+1, c2+1)
+	return string([]byte{'r', byte('1' + r1), byte('1' + r2), 'c', byte('1' + c1), byte('1' + c2)})
 }
 
 func formatHouse(h *House) string {
-	return fmt.Sprintf("%s%d", houseKindShortNames[h.Kind], h.Index+1)
+	return houseKindShortNames[h.Kind] + string([]byte{byte('1' + h.Index)})
 }
 
 // formatHouses formats a compact representation of a list of houses in the
@@ -396,16 +395,16 @@ func formatHouses(houses []*House) string {
 		}
 		digits = append(digits, h.Index+1) // Store indices as 1-based.
 	}
-	return fmt.Sprintf("%s%s", houseKindShortNames[kind], formatDigitsCompact(digits))
+	return houseKindShortNames[kind] + formatDigitsCompact(digits)
 }
 
 func formatDigitsCompact(digits []int) string {
 	// Sort the digits for consistent formatting.
 	slices.Sort(digits)
 
-	result := make([]rune, 0, len(digits))
+	result := make([]byte, 0, len(digits))
 	for _, d := range digits {
-		result = append(result, rune('0'+d))
+		result = append(result, byte('0'+d))
 	}
 	return string(result)
 }
@@ -413,12 +412,20 @@ func formatDigitsCompact(digits []int) string {
 // formatDigitsSeparated formats a list of digits separated by the specified
 // separator rune.  Digits are assumed to already be in the desired order.
 func formatDigitsSeparated(digits []int, sep rune) string {
-	result := make([]rune, 0, 2*len(digits)-1)
+	if len(digits) == 0 {
+		return ""
+	}
+	// Pre-allocate assuming 1-byte separator and 1-byte digits.
+	result := make([]byte, 0, 2*len(digits)-1)
+	sepBytes := make([]byte, utf8.UTFMax)
+	sepLen := utf8.EncodeRune(sepBytes, sep)
+	sepBytes = sepBytes[:sepLen]
+
 	for i, d := range digits {
 		if i > 0 {
-			result = append(result, sep)
+			result = append(result, sepBytes...)
 		}
-		result = append(result, rune('0'+d))
+		result = append(result, byte('0'+d))
 	}
 	return string(result)
 }

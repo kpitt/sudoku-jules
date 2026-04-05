@@ -85,7 +85,7 @@ func (p *Puzzle) PrintCandidateGrid() {
 
 func FormatCell(index int) string {
 	r, c := index/9, index%9
-	return fmt.Sprintf("r%dc%d", r+1, c+1)
+	return string([]byte{'r', byte('1' + r), 'c', byte('1' + c)})
 }
 
 func (p *Puzzle) printRow(r int) {
