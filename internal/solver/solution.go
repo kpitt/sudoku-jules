@@ -219,9 +219,13 @@ func (step *SolutionStep) formatSkyscraperOrKite() string {
 
 func (step *SolutionStep) formatEmptyRectangle() string {
 	// An Empty Rectangle involves a target value in a box connected to a conjugate pair in a line.
-	// Since the actual implementation of findEmptyRectangle is pending,
-	// we format it generically using the value and indices.
-	return step.formatElimination("%d in %s", step.values[0], step.formatIndices())
+	// The correct format shows the box containing the empty rectangle, and the cells
+	// that form the empty rectangle in parentheses.
+	var houseStr string
+	if step.house != nil {
+		houseStr = formatHouse(step.house)
+	}
+	return step.formatElimination("%d in %s (%s)", step.values[0], houseStr, step.formatIndices())
 }
 
 func (step *SolutionStep) formatUniqueRectangle() string {

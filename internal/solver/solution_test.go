@@ -60,11 +60,12 @@ func TestFormatEmptyRectangle(t *testing.T) {
 	// Initialize a mock SolutionStep for Empty Rectangle
 	step := NewStep(kindEmptyRectangle).
 		WithValues(5).
-		WithIndices(0, 1) // e.g. r1c1, r1c2
+		WithHouse(&House{Kind: kindBox, Index: 0}). // Box 1
+		WithIndices(0, 1)                           // e.g. r1c1, r1c2
 
 	step.DeleteCandidate(2, 5) // e.g. r1c3
 
-	expected := "5 in r1c12 => r1c3<>5"
+	expected := "5 in b1 (r1c12) => r1c3<>5"
 	actual := step.formatEmptyRectangle()
 
 	if actual != expected {
