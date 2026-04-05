@@ -2,8 +2,65 @@ package solver
 
 import (
 	"testing"
+
 	"github.com/kpitt/sudoku/internal/puzzle"
 )
+
+func TestFindUniqueRectangleType1(t *testing.T) {
+	p := puzzle.NewPuzzle()
+	s := NewSolver(p, nil)
+
+	setCandidate := func(r, c, v int) {
+		p.Get(r, c).Candidates.Add(v)
+		s.rows[r].Unsolved[v].Add(c)
+		s.columns[c].Unsolved[v].Add(r)
+		_, boxLoc := getBoxLoc(r, c)
+		s.boxes[p.Get(r, c).Box()].Unsolved[v].Add(boxLoc)
+	}
+
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			p.Get(r, c).Candidates.Clear()
+			for v := 1; v <= 9; v++ {
+				s.rows[r].Unsolved[v].Clear()
+				s.columns[c].Unsolved[v].Clear()
+				s.boxes[p.Get(r, c).Box()].Unsolved[v].Clear()
+			}
+		}
+	}
+
+	// Setup: Unique Rectangle (UR) Type 1
+	// The 4 corners must be in exactly 2 rows, 2 columns, and 2 boxes.
+	// For Type 1, three corners have exactly candidates {X, Y}.
+	// The fourth corner has candidates {X, Y, Z}, we can eliminate X and Y.
+	// We'll use Cells (0,0), (0,3), (1,0), and (1,3).
+	// Row 0 and Row 1 (2 rows).
+	// Col 0 and Col 3 (2 columns).
+	// Boxes 0 and 1 (2 boxes).
+
+	// Bivalue cells: {1, 2}
+	setCandidate(0, 0, 1)
+	setCandidate(0, 0, 2) // Base
+	setCandidate(0, 3, 1)
+	setCandidate(0, 3, 2) // Row Wing
+	setCandidate(1, 0, 1)
+	setCandidate(1, 0, 2) // Col Wing
+
+	// Fourth corner with extra candidates
+	setCandidate(1, 3, 1) // Target to eliminate
+	setCandidate(1, 3, 2) // Target to eliminate
+	setCandidate(1, 3, 3)
+	setCandidate(1, 3, 4)
+
+	found := s.findUniqueRectangleType1()
+	if !found {
+		t.Errorf("Unique Rectangle Type 1 technique should have been found")
+	}
+
+	if p.Get(1, 3).HasCandidate(1) || p.Get(1, 3).HasCandidate(2) {
+		t.Errorf("Target (1,3) should have eliminated candidates 1 and 2")
+	}
+}
 
 func TestFindAvoidableRectangles(t *testing.T) {
 	p := puzzle.NewPuzzle()
@@ -14,13 +71,13 @@ func TestFindAvoidableRectangles(t *testing.T) {
 	// Box 0 (r0c0, r1c0) and Box 1 (r0c3, r1c3)
 
 	// Set cell to not given
-	p.Get(0,0).IsGiven = false
+	p.Get(0, 0).IsGiven = false
 	p.PlaceValue(0, 7) // r0c0 = 7
 
-	p.Get(0,3).IsGiven = false
+	p.Get(0, 3).IsGiven = false
 	p.PlaceValue(3, 9) // r0c3 = 9
 
-	p.Get(1,0).IsGiven = false
+	p.Get(1, 0).IsGiven = false
 	p.PlaceValue(9, 9) // r1c0 = 9
 
 	// r1c3 is at index 1*9 + 3 = 12
@@ -59,10 +116,10 @@ func TestFindAvoidableRectanglesType2(t *testing.T) {
 	// Let's use r0c0 and r0c3 (Row 0) with values 7 and 9.
 	// The unsolved cells will be r1c0 and r1c3.
 
-	p.Get(0,0).IsGiven = false
+	p.Get(0, 0).IsGiven = false
 	p.PlaceValue(0, 7) // r0c0 = 7
 
-	p.Get(0,3).IsGiven = false
+	p.Get(0, 3).IsGiven = false
 	p.PlaceValue(3, 9) // r0c3 = 9
 
 	// r1c0 is diagonally opposite to r0c3 (which is 9). So it must be able to be 9.
@@ -91,16 +148,20 @@ func TestFindAvoidableRectanglesType2(t *testing.T) {
 	s.rows[1].Unsolved[7].Add(3)
 	s.rows[1].Unsolved[3].Add(3)
 	s.columns[3].Unsolved[7].Add(1)
+	s.columns[3].Unsolved[1].Add(1) // Wait, I used 3 in previous line, but loc is 3
+	// Actually r1c3 is (1,3), loc in row 1 is 3. Correct.
+	// Column 3, row is 1. Correct.
+
 	s.columns[3].Unsolved[3].Add(1)
 	_, boxLoc2 := getBoxLoc(1, 3)
 	s.boxes[c2.Box()].Unsolved[7].Add(boxLoc2)
 	s.boxes[c2.Box()].Unsolved[3].Add(boxLoc2)
 
-    // A cell that sees both c1 (r1c0) and c2 (r1c3) is r1c1
-    c_target := p.Cell(10) // r1c1
-    c_target.Candidates.Clear()
-    c_target.Candidates.Add(3)
-    c_target.Candidates.Add(5)
+	// A cell that sees both c1 (r1c0) and c2 (r1c3) is r1c1
+	c_target := p.Cell(10) // r1c1
+	c_target.Candidates.Clear()
+	c_target.Candidates.Add(3)
+	c_target.Candidates.Add(5)
 
 	found := s.findAvoidableRectangles()
 	if !found {
