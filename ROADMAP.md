@@ -30,7 +30,7 @@ classified by human difficulty.
 - [x] **XYZ-Wing**: A variation of XY-Wing where the pivot has 3 candidates.
 - [x] **Skyscraper**: A specific Turbot Fish pattern (offset X-Wing).
 - [x] **2-String Kite**: Two conjugate pairs connected by a box.
-- [-] **Empty Rectangle**: Intersection logic within a box.
+- [x] **Empty Rectangle**: Intersection logic within a box.
 - [-] **W-Wing**: Two identical bivalue cells connected by a strong link.
 - [-] **Remote Pair**: A chain of identical bivalue cells.
 

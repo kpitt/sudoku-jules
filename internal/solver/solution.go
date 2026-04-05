@@ -130,8 +130,7 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 	case kindSkyscraper, kindTwoStringKite:
 		return step.formatSkyscraperOrKite()
 	case kindEmptyRectangle:
-		// TODO: not implemented yet
-		break
+		return step.formatEmptyRectangle()
 	case kindSimpleColoring:
 		// TODO: not implemented yet
 		break
@@ -222,6 +221,10 @@ func (step *SolutionStep) formatSkyscraperOrKite() string {
 func (step *SolutionStep) formatUniqueRectangle() string {
 	return step.formatElimination("%s in %s",
 		step.formatValuesWing(), step.formatRectIndices())
+}
+
+func (step *SolutionStep) formatEmptyRectangle() string {
+	return step.formatElimination("%d in %s", step.values[0], step.formatIndices())
 }
 
 func (step *SolutionStep) formatDeletedCandidates() string {
