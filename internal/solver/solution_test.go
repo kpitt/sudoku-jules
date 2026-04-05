@@ -189,6 +189,19 @@ func TestSolverFormatStep(t *testing.T) {
 			expected: "Remote Pair: r1c1<>8",
 		},
 		{
+			name: "Multiple Candidates Eliminated",
+			step: func() *SolutionStep {
+				step := NewStep(kindNakedPair).
+					WithIndices(0, 1). // r1c1, r1c2
+					WithValues(1, 2)
+				step.DeleteCandidate(2, 1) // r1c3<>1
+				step.DeleteCandidate(2, 2) // r1c3<>2
+				step.DeleteCandidate(11, 2) // r2c3<>2
+				return step
+			}(),
+			expected: "Naked Pair: 1,2 in r1c12 => r1c3<>1, r12c3<>2",
+		},
+		{
 			name: "Empty Rectangle",
 			step: func() *SolutionStep {
 				step := NewStep(kindEmptyRectangle).
