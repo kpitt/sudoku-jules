@@ -82,3 +82,44 @@ func TestFromFile_Truncation(t *testing.T) {
 	// and handles the (truncated) data.
 	_, _ = FromFile(tmpFile)
 }
+
+func TestFromString_Errors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		contains string
+	}{
+		{
+			name:     "not enough cells",
+			input:    "123",
+			contains: "not enough cells",
+		},
+		{
+			name:     "extraneous characters",
+			input:    strings.Repeat(".", 81) + "2",
+			contains: "extraneous characters",
+		},
+		{
+			name:     "invalid character",
+			input:    strings.Repeat(".", 80) + "X",
+			contains: "invalid character",
+		},
+		{
+			name:     "invalid puzzle state (duplicate in row)",
+			input:    "11" + strings.Repeat(".", 79),
+			contains: "is not a candidate",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := FromString(tt.input)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.contains) {
+				t.Errorf("expected error containing %q, got %q", tt.contains, err.Error())
+			}
+		})
+	}
+}
