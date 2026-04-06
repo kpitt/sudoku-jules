@@ -1,6 +1,7 @@
 package solver
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/kpitt/sudoku/internal/bitset"
@@ -24,6 +25,70 @@ func TestNewHouse(t *testing.T) {
 		if h.Unsolved[i] != expected {
 			t.Errorf("Expected Unsolved[%d] to be %v, got %v", i, expected, h.Unsolved[i])
 		}
+	}
+}
+
+func TestHouse_UnsolvedDigits(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(*House)
+		wantDigits []int
+		wantNum    int
+	}{
+		{
+			name: "all unsolved",
+			setup: func(h *House) {
+				// NewHouse already has all 1-9 unsolved by default.
+			},
+			wantDigits: []int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			wantNum:    9,
+		},
+		{
+			name: "some solved",
+			setup: func(h *House) {
+				h.Unsolved[1].Clear()
+				h.Unsolved[4].Clear()
+				h.Unsolved[9].Clear()
+			},
+			wantDigits: []int{2, 3, 5, 6, 7, 8},
+			wantNum:    6,
+		},
+		{
+			name: "all solved",
+			setup: func(h *House) {
+				for i := 1; i <= 9; i++ {
+					h.Unsolved[i].Clear()
+				}
+			},
+			wantDigits: []int{},
+			wantNum:    0,
+		},
+		{
+			name: "only one unsolved",
+			setup: func(h *House) {
+				for i := 1; i <= 9; i++ {
+					if i != 5 {
+						h.Unsolved[i].Clear()
+					}
+				}
+			},
+			wantDigits: []int{5},
+			wantNum:    1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHouse(kindRow, 0)
+			tt.setup(h)
+
+			if got := h.UnsolvedDigits(); !reflect.DeepEqual(got, tt.wantDigits) {
+				t.Errorf("House.UnsolvedDigits() = %v, want %v", got, tt.wantDigits)
+			}
+			if got := h.NumUnsolved(); got != tt.wantNum {
+				t.Errorf("House.NumUnsolved() = %v, want %v", got, tt.wantNum)
+			}
+		})
 	}
 }
 
@@ -79,7 +144,7 @@ func TestHouse_Shared(t *testing.T) {
 
 	h := NewHouse(kindBox, 0)
 	for i := 0; i < 9; i++ {
-		r, c := (i/3), (i%3)
+		r, c := (i / 3), (i % 3)
 		h.Cells[i] = p.Get(r, c)
 	}
 
