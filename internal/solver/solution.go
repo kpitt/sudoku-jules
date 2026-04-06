@@ -131,8 +131,7 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 	case kindSkyscraper, kindTwoStringKite:
 		return step.formatSkyscraperOrKite()
 	case kindEmptyRectangle:
-		// TODO: not implemented yet
-		break
+		return step.formatEmptyRectangle()
 	case kindSimpleColoring:
 		// TODO: not implemented yet
 		break
@@ -216,6 +215,17 @@ func (step *SolutionStep) formatSkyscraperOrKite() string {
 	// in indices 2 and 3.
 	return step.formatElimination("%d in %s (connected by %s)", step.values[0],
 		step.formatIndexRange(0, 1), step.formatIndexRange(2, 3))
+}
+
+func (step *SolutionStep) formatEmptyRectangle() string {
+	// An Empty Rectangle involves a target value in a box connected to a conjugate pair in a line.
+	// The correct format shows the box containing the empty rectangle, and the cells
+	// that form the empty rectangle in parentheses.
+	var houseStr string
+	if step.house != nil {
+		houseStr = formatHouse(step.house)
+	}
+	return step.formatElimination("%d in %s (%s)", step.values[0], houseStr, step.formatIndices())
 }
 
 func (step *SolutionStep) formatUniqueRectangle() string {
