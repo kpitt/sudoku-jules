@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/kpitt/sudoku/internal/puzzle"
@@ -234,15 +235,16 @@ func (step *SolutionStep) formatDeletedCandidates() string {
 	// Then, process the values in order and format each list of candidates.
 	orderedValues := mapKeys(locsByValue)
 	slices.Sort(orderedValues)
-	var result string
+	var builder strings.Builder
 	for i, v := range orderedValues {
 		if i > 0 {
-			result += ", "
+			builder.WriteString(", ")
 		}
-		result += formatCellsCompact(locsByValue[v])
-		result += "<>" + string([]byte{byte('0' + v)})
+		builder.WriteString(formatCellsCompact(locsByValue[v]))
+		builder.WriteString("<>")
+		builder.WriteByte(byte('0' + v))
 	}
-	return result
+	return builder.String()
 }
 
 // formatValuesList formats all values of the step as a comma-separated list in
@@ -287,25 +289,25 @@ func formatCellsCompact(cells []int) string {
 		slices.Sort(cells)
 	}
 
-	var result string
+	var builder strings.Builder
 	for len(cells) > 0 {
-		if len(result) > 0 {
-			result += ","
+		if builder.Len() > 0 {
+			builder.WriteByte(',')
 		}
 
 		// Short-circuit path: If there's only one cell, just format it directly.
 		if len(cells) == 1 {
-			result += puzzle.FormatCell(cells[0])
+			builder.WriteString(puzzle.FormatCell(cells[0]))
 			break
 		}
 
 		remainingCells := make([]int, 0, len(cells))
-		rows, cols := []rune{}, []rune{}
+		rows, cols := make([]byte, 0, 9), make([]byte, 0, 9)
 		appendRow := func(r int) {
-			rows = append(rows, rune('1'+r))
+			rows = append(rows, byte('1'+r))
 		}
 		appendCol := func(c int) {
-			cols = append(cols, rune('1'+c))
+			cols = append(cols, byte('1'+c))
 		}
 		var row, col int
 		for i, cell := range cells {
@@ -325,11 +327,14 @@ func formatCellsCompact(cells []int) string {
 				remainingCells = append(remainingCells, cell)
 			}
 		}
-		result += "r" + string(rows) + "c" + string(cols)
+		builder.WriteByte('r')
+		builder.Write(rows)
+		builder.WriteByte('c')
+		builder.Write(cols)
 		cells = remainingCells
 	}
 
-	return result
+	return builder.String()
 }
 
 func formatRectCompact(cells []int) string {
