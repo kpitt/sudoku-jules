@@ -95,7 +95,7 @@ func TestSolverFormatStep(t *testing.T) {
 			step: NewStep(kindHiddenSingle).
 				WithPlacedValue(0, 5).
 				WithHouse(NewHouse(kindRow, 0)),
-			expected: "Hidden Single: 5 in r1 => r1c1=5",
+			expected: "Hidden Single: r1c1=5",
 		},
 		{
 			name: "Naked Pair",
@@ -194,8 +194,8 @@ func TestSolverFormatStep(t *testing.T) {
 				step := NewStep(kindNakedPair).
 					WithIndices(0, 1). // r1c1, r1c2
 					WithValues(1, 2)
-				step.DeleteCandidate(2, 1) // r1c3<>1
-				step.DeleteCandidate(2, 2) // r1c3<>2
+				step.DeleteCandidate(2, 1)  // r1c3<>1
+				step.DeleteCandidate(2, 2)  // r1c3<>2
 				step.DeleteCandidate(11, 2) // r2c3<>2
 				return step
 			}(),
