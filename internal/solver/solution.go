@@ -85,11 +85,8 @@ func (s *Solver) FormatStep(step *SolutionStep) string {
 
 func (s *Solver) getStepDescription(step *SolutionStep) string {
 	switch step.technique {
-	case kindNakedSingle:
+	case kindNakedSingle, kindHiddenSingle:
 		return step.formatPlacedValue()
-
-	case kindHiddenSingle:
-		return step.formatHiddenSingle()
 
 	case kindNakedPair,
 		kindNakedTriple,
@@ -114,8 +111,7 @@ func (s *Solver) getStepDescription(step *SolutionStep) string {
 
 		return step.formatFish()
 
-	case kindXYWing,
-		kindXYZWing:
+	case kindXYWing, kindXYZWing:
 
 		return step.formatXYZWing()
 
@@ -155,10 +151,6 @@ func (s *Solver) formatNamedStep(step *SolutionStep, desc string) string {
 		return name
 	}
 	return name + ": " + desc
-}
-
-func (step *SolutionStep) formatHiddenSingle() string {
-	return string([]byte{byte('0' + step.values[0])}) + " in " + formatHouse(step.house) + " => " + step.formatPlacedValue()
 }
 
 func (step *SolutionStep) formatPlacedValue() string {
