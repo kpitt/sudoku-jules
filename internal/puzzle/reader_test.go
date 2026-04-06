@@ -28,12 +28,9 @@ func TestFromFile_LargeInput(t *testing.T) {
 	_, err = FromFile(tmpFile)
 	if err == nil {
 		t.Error("expected error for large input, got nil")
+	} else if !strings.Contains(err.Error(), "exceeds maximum allowed size") {
+		t.Errorf("expected maximum size error, got %v", err)
 	}
-
-	// The error could be from FromString (invalid format) or we could check if it was truncated.
-	// io.ReadAll with io.LimitReader doesn't return an error on truncation, it just returns the limit.
-	// So FromString will get a 1MB string of 'A's.
-	// FromString("AAAA...") should return an error.
 }
 
 func TestFromFile_ValidInput(t *testing.T) {
@@ -78,7 +75,11 @@ func TestFromFile_Truncation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// We can't easily check internal allocation, but we can verify it doesn't crash
-	// and handles the (truncated) data.
-	_, _ = FromFile(tmpFile)
+	// We check that truncation error is handled properly.
+	_, err = FromFile(tmpFile)
+	if err == nil {
+		t.Error("expected error for truncated input, got nil")
+	} else if !strings.Contains(err.Error(), "exceeds maximum allowed size") {
+		t.Errorf("expected maximum size error, got %v", err)
+	}
 }
