@@ -111,3 +111,123 @@ func TestFindAvoidableRectanglesType2(t *testing.T) {
 		t.Errorf("Expected candidate 3 to be eliminated from r1c1")
 	}
 }
+
+func TestFindAvoidableRectanglesType3(t *testing.T) {
+	p := puzzle.NewPuzzle()
+	s := NewSolver(p, nil)
+
+	// Avoidable Rectangle Type 3:
+	// r0c0=7, r0c3=9 (solved)
+	// r1c0, r1c3 (unsolved)
+	// r1c0 has candidates {9, 2}
+	// r1c3 has candidates {7, 3}
+	// Pseudo-cell: {2, 3}
+	// Add another cell r1c1 with candidates {2, 3}
+	// Together they form a naked pair {2, 3} in row 1.
+	// Eliminate 2 and 3 from r1c2.
+
+	p.Get(0, 0).IsGiven = false
+	p.PlaceValue(0, 7) // r0c0 = 7
+
+	p.Get(0, 3).IsGiven = false
+	p.PlaceValue(3, 9) // r0c3 = 9
+
+	c1 := p.Cell(9) // r1c0 (opposite 9)
+	c1.Candidates.Clear()
+	c1.Candidates.Add(9)
+	c1.Candidates.Add(2)
+
+	c2 := p.Cell(12) // r1c3 (opposite 7)
+	c2.Candidates.Clear()
+	c2.Candidates.Add(7)
+	c2.Candidates.Add(3)
+
+	c3 := p.Cell(10) // r1c1
+	c3.Candidates.Clear()
+	c3.Candidates.Add(2)
+	c3.Candidates.Add(3)
+
+	cTarget := p.Cell(11) // r1c2
+	cTarget.Candidates.Clear()
+	cTarget.Candidates.Add(2)
+	cTarget.Candidates.Add(5)
+
+	// Update solver state
+	s.rows[1].Unsolved[9].Add(0)
+	s.rows[1].Unsolved[2].Add(0)
+	s.rows[1].Unsolved[7].Add(3)
+	s.rows[1].Unsolved[3].Add(3)
+	s.rows[1].Unsolved[2].Add(1)
+	s.rows[1].Unsolved[3].Add(1)
+	s.rows[1].Unsolved[2].Add(2)
+	s.rows[1].Unsolved[5].Add(2)
+
+	found := s.findAvoidableRectangles()
+	if !found {
+		t.Errorf("Expected to find Avoidable Rectangle Type 3")
+	}
+
+	if cTarget.HasCandidate(2) {
+		t.Errorf("Expected candidate 2 to be eliminated from r1c2")
+	}
+}
+
+func TestFindAvoidableRectanglesType4(t *testing.T) {
+	p := puzzle.NewPuzzle()
+	s := NewSolver(p, nil)
+
+	// Avoidable Rectangle Type 4:
+	// r0c0=7, r0c3=9 (solved)
+	// r1c0, r1c3 (unsolved)
+	// r1c0 has candidates {9, 2}
+	// r1c3 has candidates {7, 2}
+	// Conjugate pair: Value 9 is restricted to r1c0 and r1c3 in row 1?
+	// Wait, r1c3 doesn't have 9.
+	// Actually, Type 4: v1 is conjugate in a house.
+	// r1c0 has {9, 2}, r1c3 has {7, 2}.
+	// If 9 is restricted to r1c0 and some other cell? No.
+	// If 9 is restricted to r1c0 and r1c3 in row 1.
+	// But r1c3 only has {7, 2}. So 9 is a single in r1c0?
+	// Let's make it: r1c0 has {9, 7, 2}, r1c3 has {7, 9, 2}.
+	// Value 9 is restricted to r1c0 and r1c3 in row 1.
+	// Then eliminate 7 from r1c0 and r1c3? No, eliminate the OTHER deadly value.
+	// Deadly values are 9 and 7.
+	// If 9 is conjugate, eliminate 7.
+
+	p.Get(0, 0).IsGiven = false
+	p.PlaceValue(0, 7) // r0c0 = 7
+
+	p.Get(0, 3).IsGiven = false
+	p.PlaceValue(3, 9) // r0c3 = 9
+
+	c1 := p.Cell(9) // r1c0 (opposite 9)
+	c1.Candidates.Clear()
+	c1.Candidates.Add(9)
+	c1.Candidates.Add(7)
+	c1.Candidates.Add(2)
+
+	c2 := p.Cell(12) // r1c3 (opposite 7)
+	c2.Candidates.Clear()
+	c2.Candidates.Add(7)
+	c2.Candidates.Add(9)
+	c2.Candidates.Add(2)
+
+	// Row 1: 9 is restricted to col 0 and 3.
+	s.rows[1].Unsolved[9].Clear()
+	s.rows[1].Unsolved[9].Add(0)
+	s.rows[1].Unsolved[9].Add(3)
+
+	s.rows[1].Unsolved[7].Add(0)
+	s.rows[1].Unsolved[7].Add(3)
+	s.rows[1].Unsolved[2].Add(0)
+	s.rows[1].Unsolved[2].Add(3)
+
+	found := s.findAvoidableRectangles()
+	if !found {
+		t.Errorf("Expected to find Avoidable Rectangle Type 4")
+	}
+
+	if c1.HasCandidate(7) || c2.HasCandidate(7) {
+		t.Errorf("Expected candidate 7 to be eliminated from r1c0 and r1c3")
+	}
+}

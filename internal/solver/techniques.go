@@ -596,6 +596,8 @@ func (s *Solver) findAvoidableRectangles() (found bool) {
 					} else if solvedCount == 2 {
 						// For Type 2 Avoidable Rectangle, exactly 2 cells are solved.
 						found = s.checkAvoidableRectangleType2(cell11, cell12, cell21, cell22) || found
+						found = s.checkAvoidableRectangleType3(cell11, cell12, cell21, cell22) || found
+						found = s.checkAvoidableRectangleType4(cell11, cell12, cell21, cell22) || found
 					}
 				}
 			}
@@ -774,6 +776,287 @@ func (s *Solver) checkAvoidableRectangleType2(c11, c12, c21, c22 *puzzle.Cell) b
 	}
 
 	return found
+}
+
+func (s *Solver) checkAvoidableRectangleType3(c11, c12, c21, c22 *puzzle.Cell) bool {
+	var solved [2]*puzzle.Cell
+	var unsolved [2]*puzzle.Cell
+
+	cells := []*puzzle.Cell{c11, c12, c21, c22}
+	sIdx, uIdx := 0, 0
+	for _, c := range cells {
+		if c.IsSolved() {
+			solved[sIdx] = c
+			sIdx++
+		} else {
+			unsolved[uIdx] = c
+			uIdx++
+		}
+	}
+
+	// Must share a row or column
+	if solved[0].Row != solved[1].Row && solved[0].Col != solved[1].Col {
+		return false
+	}
+
+	v1 := solved[0].Value()
+	v2 := solved[1].Value()
+
+	if v1 == v2 {
+		return false
+	}
+
+	// Identify which unsolved cell is opposite which solved cell
+	var uOppositeV1, uOppositeV2 *puzzle.Cell
+	if unsolved[0].Row != solved[0].Row && unsolved[0].Col != solved[0].Col {
+		uOppositeV1 = unsolved[0]
+		uOppositeV2 = unsolved[1]
+	} else {
+		uOppositeV1 = unsolved[1]
+		uOppositeV2 = unsolved[0]
+	}
+
+	// Both unsolved cells MUST hold their respective deadly values
+	if !uOppositeV1.HasCandidate(v1) || !uOppositeV2.HasCandidate(v2) {
+		return false
+	}
+
+	// Pseudo-cell candidates are the union of (unsolved[0] candidates - v_something) and (unsolved[1] candidates - v_other)
+	// Actually, the pseudo-cell's candidates are (unsolved[0] - v_deadly) UNION (unsolved[1] - v_deadly)
+	p1Cands := uOppositeV1.Candidates.Difference(bitset.FromValues16(v1))
+	p2Cands := uOppositeV2.Candidates.Difference(bitset.FromValues16(v2))
+	pseudoCands := p1Cands.Union(p2Cands)
+
+	if pseudoCands.Empty() {
+		return false
+	}
+
+	// We need to find a naked subset in a house that contains both unsolved cells.
+	houses := s.getCommonHouses(unsolved[0].Index(), unsolved[1].Index())
+	for _, h := range houses {
+		// A Type 3 AR is essentially a Naked Subset where the two unsolved cells act as a single "pseudo-cell".
+		// We look for N-1 other cells in the house that, together with our pseudo-cell, form a naked subset of size N.
+
+		// Collect other unsolved cells in the house (excluding our two AR cells)
+		var otherUnsolved []*puzzle.Cell
+		for i := range 9 {
+			c := h.Cells[i]
+			if !c.IsSolved() && c.Index() != unsolved[0].Index() && c.Index() != unsolved[1].Index() {
+				otherUnsolved = append(otherUnsolved, c)
+			}
+		}
+
+		// Try subset sizes from 2 to 4 (pseudo-cell + 1 to 3 others)
+		for size := 2; size <= 4; size++ {
+			if len(otherUnsolved) < size-1 {
+				continue
+			}
+
+			if s.findNakedSubsetWithType3(h, otherUnsolved, pseudoCands, size, unsolved, []int{v1, v2}) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *Solver) findNakedSubsetWithType3(
+	h *House,
+	others []*puzzle.Cell,
+	pseudoCands bitset.BitSet16,
+	size int,
+	arUnsolved [2]*puzzle.Cell,
+	deadlyValues []int,
+) bool {
+	var checkCombinations func(start int, currentIndices []int) bool
+	checkCombinations = func(start int, currentIndices []int) bool {
+		if len(currentIndices) == size-1 {
+			combinedCands := pseudoCands
+			for _, idx := range currentIndices {
+				combinedCands = combinedCands.Union(others[idx].Candidates)
+			}
+
+			if combinedCands.Size() == size {
+				// Found a naked subset!
+				// Eliminate these candidates from OTHER cells in the house.
+				subsetIndices := bitset.BitSet16(0)
+				subsetIndices.Add(arUnsolved[0].Index())
+				subsetIndices.Add(arUnsolved[1].Index())
+				for _, idx := range currentIndices {
+					subsetIndices.Add(others[idx].Index())
+				}
+
+				found := false
+				step := NewStep(kindAvoidableRectangle)
+				for i := range 9 {
+					c := h.Cells[i]
+					if c.IsSolved() || subsetIndices.Contains(c.Index()) {
+						continue
+					}
+
+					common := c.Candidates.Intersection(combinedCands)
+					for v := range common.All() {
+						step.DeleteCandidate(c.Index(), v)
+						found = true
+					}
+				}
+
+				if found {
+					s.applyStep(step.
+						WithIndices(arUnsolved[0].Index(), arUnsolved[1].Index(), others[currentIndices[0]].Index()). // representative indices
+						WithValues(combinedCands.Values()...).
+						WithHouse(h))
+					return true
+				}
+			}
+			return false
+		}
+
+		for i := start; i < len(others); i++ {
+			if checkCombinations(i+1, append(currentIndices, i)) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return checkCombinations(0, make([]int, 0, size-1))
+}
+
+func (s *Solver) getCommonHouses(idx1, idx2 int) []*House {
+	c1 := s.puzzle.Cell(idx1)
+	c2 := s.puzzle.Cell(idx2)
+
+	var houses []*House
+	if c1.Row == c2.Row {
+		houses = append(houses, s.rows[c1.Row])
+	}
+	if c1.Col == c2.Col {
+		houses = append(houses, s.columns[c1.Col])
+	}
+	if c1.Box() == c2.Box() {
+		houses = append(houses, s.boxes[c1.Box()])
+	}
+	return houses
+}
+
+func (s *Solver) checkAvoidableRectangleType4(c11, c12, c21, c22 *puzzle.Cell) bool {
+	var solved [2]*puzzle.Cell
+	var unsolved [2]*puzzle.Cell
+
+	cells := []*puzzle.Cell{c11, c12, c21, c22}
+	sIdx, uIdx := 0, 0
+	for _, c := range cells {
+		if c.IsSolved() {
+			solved[sIdx] = c
+			sIdx++
+		} else {
+			unsolved[uIdx] = c
+			uIdx++
+		}
+	}
+
+	// Must share a row or column
+	if solved[0].Row != solved[1].Row && solved[0].Col != solved[1].Col {
+		return false
+	}
+
+	v1 := solved[0].Value()
+	v2 := solved[1].Value()
+
+	if v1 == v2 {
+		return false
+	}
+
+	// Identify which unsolved cell is opposite which solved cell
+	var uOppositeV1, uOppositeV2 *puzzle.Cell
+	if unsolved[0].Row != solved[0].Row && unsolved[0].Col != solved[0].Col {
+		uOppositeV1 = unsolved[0]
+		uOppositeV2 = unsolved[1]
+	} else {
+		uOppositeV1 = unsolved[1]
+		uOppositeV2 = unsolved[0]
+	}
+
+	// Both unsolved cells MUST hold their respective deadly values
+	if !uOppositeV1.HasCandidate(v1) || !uOppositeV2.HasCandidate(v2) {
+		return false
+	}
+
+	// Look for a house where one of the deadly values (v1 or v2) is a conjugate pair restricted to the two unsolved cells
+	houses := s.getCommonHouses(unsolved[0].Index(), unsolved[1].Index())
+	for _, h := range houses {
+		// Check v1
+		if h.Unsolved[v1].Size() == 2 && h.Unsolved[v1].Contains(h.indexOf(uOppositeV1.Index())) && h.Unsolved[v1].Contains(h.indexOf(uOppositeV2.Index())) {
+			// v1 is restricted to these two cells in this house.
+			// This means one of them MUST be v1.
+			// If we also assume this is an avoidable rectangle, we get a contradiction if uOppositeV1=v1 AND uOppositeV2=v2.
+			// However, in Type 4 UR/AR, if one value is conjugate, we can eliminate the OTHER value from the cells.
+			// Actually, if v1 is restricted to these two cells, then one of them is v1.
+			// The deadly pattern is uOppositeV1=v1 and uOppositeV2=v2.
+			// To avoid this, we must have uOppositeV1=v1 and uOppositeV2!=v2 OR uOppositeV1!=v1 and uOppositeV2=v2.
+			// Wait, if v1 is conjugate in this house and only in these two cells, then one of them IS v1.
+			// If uOppositeV2 is v2, then uOppositeV1 MUST be v1 to complete the rectangle? No.
+			// If v1 is conjugate, we can eliminate v2 from these two cells?
+			// Let's re-verify: Type 4: If v1 is restricted to uOppositeV1 and uOppositeV2 in a house, then v2 can be eliminated from those same two cells.
+			// Why? If uOppositeV1 or uOppositeV2 were v2, then because v1 is restricted to these two, the other would have to be v1.
+			// So if uOppositeV1 = v2, then uOppositeV2 = v1. But wait, that doesn't form the deadly pattern.
+			// The deadly pattern is uOppositeV1 = v1 AND uOppositeV2 = v2.
+			// If v1 is restricted to these two cells, then one of them MUST be v1.
+			// If uOppositeV1 = v1, then uOppositeV2 = v2 would form the deadly pattern.
+			// If uOppositeV2 = v1, then uOppositeV1 could be v2? No, because v1 is restricted to these two.
+			// Let's use the standard rule: In Type 4, if v1 is a conjugate pair in a house, eliminate v2 from both cells.
+			// Wait, that's for Unique Rectangles. For Avoidable Rectangles, it's similar.
+			// If v1 is conjugate in a house, we can eliminate v2 from the two cells.
+
+			found := false
+			step := NewStep(kindAvoidableRectangle)
+			if uOppositeV1.HasCandidate(v2) {
+				step.DeleteCandidate(uOppositeV1.Index(), v2)
+				found = true
+			}
+			if uOppositeV2.HasCandidate(v2) {
+				step.DeleteCandidate(uOppositeV2.Index(), v2)
+				found = true
+			}
+
+			if found {
+				s.applyStep(step.WithIndices(c11.Index(), c12.Index(), c21.Index(), c22.Index()).WithValues(v1, v2))
+				return true
+			}
+		}
+
+		// Check v2
+		if h.Unsolved[v2].Size() == 2 && h.Unsolved[v2].Contains(h.indexOf(uOppositeV1.Index())) && h.Unsolved[v2].Contains(h.indexOf(uOppositeV2.Index())) {
+			found := false
+			step := NewStep(kindAvoidableRectangle)
+			if uOppositeV1.HasCandidate(v1) {
+				step.DeleteCandidate(uOppositeV1.Index(), v1)
+				found = true
+			}
+			if uOppositeV2.HasCandidate(v1) {
+				step.DeleteCandidate(uOppositeV2.Index(), v1)
+				found = true
+			}
+
+			if found {
+				s.applyStep(step.WithIndices(c11.Index(), c12.Index(), c21.Index(), c22.Index()).WithValues(v1, v2))
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (h *House) indexOf(idx int) int {
+	for i := range 9 {
+		if h.Cells[i].Index() == idx {
+			return i
+		}
+	}
+	return -1
 }
 
 // findXYZ searches for 3 cells that fit the "XYZ-Wing" pattern.  An XYZ-Wing

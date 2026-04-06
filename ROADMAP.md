@@ -51,7 +51,11 @@ classified by human difficulty.
     - [-] Type 2 (One corner has extra candidate).
     - [-] Type 3 (Subset / Pseudo-cells).
     - [-] Type 4 (Conjugate pair).
-- [x] **Avoidable Rectangle**: Uses placed values to find contradictions.
+- [x] **Avoidable Rectangle**:
+    - [x] Type 1 (One unsolved corner).
+    - [x] Type 2 (Two unsolved corners with shared extra candidate).
+    - [x] Type 3 (Pseudo-cell naked subset).
+    - [x] Type 4 (Conjugate pair).
 
 ## 4. Expert Techniques
 
