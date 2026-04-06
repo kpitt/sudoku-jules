@@ -1,6 +1,7 @@
 package puzzle
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -12,12 +13,17 @@ import (
 const maxPuzzleSize = 1024 * 1024
 
 func FromFile(f *os.File) (*Puzzle, error) {
-	var buf strings.Builder
-	if data, err := io.ReadAll(io.LimitReader(f, maxPuzzleSize)); err != nil {
+	// Read maxPuzzleSize + 1 to detect if the file is larger than the limit
+	data, err := io.ReadAll(io.LimitReader(f, maxPuzzleSize+1))
+	if err != nil {
 		return nil, err
-	} else {
-		_, _ = buf.Write(data)
 	}
+	if len(data) > maxPuzzleSize {
+		return nil, fmt.Errorf("puzzle file exceeds maximum allowed size of %d bytes", maxPuzzleSize)
+	}
+
+	var buf strings.Builder
+	_, _ = buf.Write(data)
 	return FromString(buf.String())
 }
 
