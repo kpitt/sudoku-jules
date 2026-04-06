@@ -1,10 +1,7 @@
 package solver
 
 import (
-	"fmt"
 	"time"
-
-	"github.com/fatih/color"
 )
 
 // DancingLinksOptions configures the Dancing Links solver behavior
@@ -145,71 +142,6 @@ func (dl *DancingLinks) getMatrixInfo() MatrixInfo {
 	}
 
 	return info
-}
-
-// PrintStats displays solving statistics in a formatted way
-func (stats *DancingLinksStats) PrintStats() {
-	fmt.Printf("\n%s\n", color.HiCyanString("Dancing Links Statistics"))
-	fmt.Printf("%s\n", color.HiCyanString("========================"))
-
-	fmt.Printf("Matrix Info:\n")
-	fmt.Printf("  Columns:     %s\n", color.HiYellowString("%d", stats.MatrixSize.Columns))
-	fmt.Printf("  Rows:        %s\n", color.HiYellowString("%d", stats.MatrixSize.Rows))
-	fmt.Printf("  Total Nodes: %s\n", color.HiYellowString("%d", stats.MatrixSize.TotalNodes))
-	fmt.Printf("  Density:     %s\n", color.HiYellowString("%.2f%%", stats.MatrixSize.Density))
-
-	fmt.Printf("\nSearch Statistics:\n")
-	fmt.Printf("  Nodes Visited:   %s\n", color.HiGreenString("%d", stats.NodesVisited))
-	fmt.Printf("  Backtracks:      %s\n", color.HiRedString("%d", stats.BacktrackCount))
-	fmt.Printf("  Solutions Found: %s\n", color.HiGreenString("%d", stats.SolutionsFound))
-	fmt.Printf("  Time Elapsed:    %s\n", color.HiBlueString("%v", stats.TimeElapsed))
-
-	if stats.TimeElapsed.Nanoseconds() > 0 {
-		nodesPerSec := float64(stats.NodesVisited) / stats.TimeElapsed.Seconds()
-		fmt.Printf("  Nodes/Second:    %s\n", color.HiMagentaString("%.0f", nodesPerSec))
-	}
-}
-
-// PrintMatrix prints a visual representation of the constraint matrix (for debugging)
-func (dl *DancingLinks) PrintMatrix() {
-	fmt.Printf("\n%s\n", color.HiCyanString("Constraint Matrix Structure"))
-	fmt.Printf("%s\n", color.HiCyanString("==========================="))
-
-	// Print column headers
-	fmt.Print("Columns: ")
-	count := 0
-	for col := dl.Header.Right; col != &dl.Header.Node && count < 10; col = col.Right {
-		fmt.Printf("%s ", color.HiYellowString(col.Column.Name))
-		count++
-	}
-	if count == 10 {
-		totalCols := dl.getMatrixInfo().Columns
-		fmt.Printf("... (%d more)", totalCols-10)
-	}
-	fmt.Println()
-
-	// Print first few rows
-	fmt.Printf("Rows (%d total):\n", len(dl.Rows))
-	for i, row := range dl.Rows {
-		if i >= 5 { // Only show first 5 rows
-			fmt.Printf("... (%d more rows)\n", len(dl.Rows)-5)
-			break
-		}
-
-		if row != nil {
-			r, c, val := dl.decodeRow(row.RowID)
-			fmt.Printf("  Row %d: R%dC%d=%d -> ", i, r, c, val)
-
-			// Show which columns this row covers
-			nodeCount := 1
-			fmt.Printf("%s ", row.Column.Name)
-			for n := row.Right; n != row && nodeCount < 4; n = n.Right {
-				fmt.Printf("%s ", n.Column.Name)
-				nodeCount++
-			}
-			fmt.Println()
-		}
-	}
 }
 
 // CountSolutions counts the total number of solutions (useful for puzzles with multiple solutions)
