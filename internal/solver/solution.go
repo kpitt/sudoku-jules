@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/kpitt/sudoku/internal/puzzle"
@@ -287,49 +288,67 @@ func formatCellsCompact(cells []int) string {
 		slices.Sort(cells)
 	}
 
-	var result string
-	for len(cells) > 0 {
-		if len(result) > 0 {
-			result += ","
+	var result strings.Builder
+	// Pre-allocate assuming an average of 5 bytes per group.
+	result.Grow(len(cells) * 5)
+
+	var buf1, buf2 [81]int
+	currentCells := cells
+	use1 := true
+
+	for len(currentCells) > 0 {
+		if result.Len() > 0 {
+			result.WriteByte(',')
 		}
 
 		// Short-circuit path: If there's only one cell, just format it directly.
-		if len(cells) == 1 {
-			result += puzzle.FormatCell(cells[0])
+		if len(currentCells) == 1 {
+			result.WriteString(puzzle.FormatCell(currentCells[0]))
 			break
 		}
 
-		remainingCells := make([]int, 0, len(cells))
-		rows, cols := []rune{}, []rune{}
-		appendRow := func(r int) {
-			rows = append(rows, rune('1'+r))
+		var nextCells []int
+		if use1 {
+			nextCells = buf1[:0]
+		} else {
+			nextCells = buf2[:0]
 		}
-		appendCol := func(c int) {
-			cols = append(cols, rune('1'+c))
-		}
+		use1 = !use1
+
+		var rows, cols [9]byte
+		var numRows, numCols int
 		var row, col int
-		for i, cell := range cells {
+		for i, cell := range currentCells {
 			r, c := rowColFromIndex(cell)
 			if i == 0 {
 				// First cell
 				row, col = r, c
-				appendRow(row)
-				appendCol(col)
-			} else if r == row && len(rows) == 1 {
-				appendCol(c)
-			} else if c == col && len(cols) == 1 {
-				appendRow(r)
+				rows[numRows] = byte('1' + r)
+				numRows++
+				cols[numCols] = byte('1' + c)
+				numCols++
+			} else if r == row && numRows == 1 {
+				cols[numCols] = byte('1' + c)
+				numCols++
+			} else if c == col && numCols == 1 {
+				rows[numRows] = byte('1' + r)
+				numRows++
 			} else {
 				// Cell is not in the same line as the first cell, so save it
 				// for processing in the next pass.
-				remainingCells = append(remainingCells, cell)
+				nextCells = append(nextCells, cell)
 			}
 		}
-		result += "r" + string(rows) + "c" + string(cols)
-		cells = remainingCells
+
+		result.WriteByte('r')
+		result.Write(rows[:numRows])
+		result.WriteByte('c')
+		result.Write(cols[:numCols])
+
+		currentCells = nextCells
 	}
 
-	return result
+	return result.String()
 }
 
 func formatRectCompact(cells []int) string {
