@@ -28,6 +28,29 @@ func TestNewHouse(t *testing.T) {
 	}
 }
 
+func TestHouse_NumUnsolved(t *testing.T) {
+	h := NewHouse(kindRow, 0)
+
+	// Initially, all 9 digits should have possible locations
+	if got := h.NumUnsolved(); got != 9 {
+		t.Errorf("NewHouse().NumUnsolved() = %v, want %v", got, 9)
+	}
+
+	// Clear candidates for digit 1
+	h.Unsolved[1].Clear()
+	if got := h.NumUnsolved(); got != 8 {
+		t.Errorf("After clearing 1 digit, NumUnsolved() = %v, want %v", got, 8)
+	}
+
+	// Clear remaining candidates
+	for i := 2; i <= 9; i++ {
+		h.Unsolved[i].Clear()
+	}
+	if got := h.NumUnsolved(); got != 0 {
+		t.Errorf("After clearing all digits, NumUnsolved() = %v, want %v", got, 0)
+	}
+}
+
 func TestHouse_UnsolvedDigits(t *testing.T) {
 	tests := []struct {
 		name       string
