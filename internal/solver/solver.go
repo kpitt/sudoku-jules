@@ -56,6 +56,19 @@ const (
 	allLocBits = 0b0111111111
 )
 
+func CheckPuzzle(p *puzzle.Puzzle) (bool, error) {
+	dl := NewDancingLinks(p)
+	count := dl.CountSolutions(2)
+
+	if count == 1 {
+		return true, nil
+	} else if count == 0 {
+		return false, puzzle.ErrNoSolution
+	} else {
+		return false, puzzle.ErrMultipleSolutions
+	}
+}
+
 func NewSolver(p *puzzle.Puzzle, opts *Options) *Solver {
 	if opts == nil {
 		opts = &Options{}
