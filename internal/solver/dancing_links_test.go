@@ -207,6 +207,92 @@ func TestDancingLinksFullyConstrainedPuzzle(t *testing.T) {
 }
 
 // Benchmark tests
+func TestDancingLinksCountSolutions(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func(*puzzle.Puzzle)
+		maxSolutions int
+		expected     int
+	}{
+		{
+			name:         "Empty puzzle (many solutions)",
+			setup:        func(p *puzzle.Puzzle) {},
+			maxSolutions: 10,
+			expected:     10,
+		},
+		{
+			name: "Fully solved puzzle (1 solution)",
+			setup: func(p *puzzle.Puzzle) {
+				solution := [81]int{
+					5, 3, 4, 6, 7, 8, 9, 1, 2,
+					6, 7, 2, 1, 9, 5, 3, 4, 8,
+					1, 9, 8, 3, 4, 2, 5, 6, 7,
+					8, 5, 9, 7, 6, 1, 4, 2, 3,
+					4, 2, 6, 8, 5, 3, 7, 9, 1,
+					7, 1, 3, 9, 2, 4, 8, 5, 6,
+					9, 6, 1, 5, 3, 7, 2, 8, 4,
+					2, 8, 7, 4, 1, 9, 6, 3, 5,
+					3, 4, 5, 2, 8, 6, 1, 7, 9,
+				}
+				for idx := range 81 {
+					p.PlaceValue(idx, solution[idx])
+				}
+			},
+			maxSolutions: 10,
+			expected:     1,
+		},
+		{
+			name: "Puzzle with 2 solutions (interchangeable rectangle)",
+			setup: func(p *puzzle.Puzzle) {
+				solution := [81]int{
+					5, 3, 4, 6, 7, 8, 9, 1, 2,
+					6, 7, 2, 1, 9, 5, 3, 4, 8,
+					1, 9, 8, 3, 4, 2, 5, 6, 7,
+					8, 5, 9, 7, 6, 1, 4, 2, 3,
+					4, 2, 6, 8, 5, 3, 7, 9, 1,
+					7, 1, 3, 9, 2, 4, 8, 5, 6,
+					9, 6, 1, 5, 3, 7, 2, 8, 4,
+					2, 8, 7, 4, 1, 9, 6, 3, 5,
+					3, 4, 5, 2, 8, 6, 1, 7, 9,
+				}
+				for idx := range 81 {
+					// Omit cells 3, 4, 30, 31 (r1c4, r1c5, r4c4, r4c5)
+					if idx == 3 || idx == 4 || idx == 30 || idx == 31 {
+						continue
+					}
+					p.PlaceValue(idx, solution[idx])
+				}
+			},
+			maxSolutions: 10,
+			expected:     2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := puzzle.NewPuzzle()
+			tc.setup(p)
+
+			dl := NewDancingLinks(p)
+
+			// Store original solution length to verify it gets restored
+			origLen := len(dl.solution)
+
+			count := dl.CountSolutions(tc.maxSolutions)
+
+			if count != tc.expected {
+				t.Errorf("Expected %d solutions, got %d", tc.expected, count)
+			}
+
+			// Verify solution state was restored
+			if len(dl.solution) != origLen {
+				t.Errorf("Expected solution state to be restored to length %d, got %d", origLen, len(dl.solution))
+			}
+		})
+	}
+}
+
+// Benchmark tests
 func BenchmarkDancingLinksCreation(b *testing.B) {
 	p := puzzle.NewPuzzle()
 

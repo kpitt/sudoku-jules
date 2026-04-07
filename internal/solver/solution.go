@@ -235,15 +235,16 @@ func (step *SolutionStep) formatDeletedCandidates() string {
 	// Then, process the values in order and format each list of candidates.
 	orderedValues := mapKeys(locsByValue)
 	slices.Sort(orderedValues)
-	var result string
+	var builder strings.Builder
 	for i, v := range orderedValues {
 		if i > 0 {
-			result += ", "
+			builder.WriteString(", ")
 		}
-		result += formatCellsCompact(locsByValue[v])
-		result += "<>" + string([]byte{byte('0' + v)})
+		builder.WriteString(formatCellsCompact(locsByValue[v]))
+		builder.WriteString("<>")
+		builder.WriteByte(byte('0' + v))
 	}
-	return result
+	return builder.String()
 }
 
 // formatValuesList formats all values of the step as a comma-separated list in
@@ -288,22 +289,22 @@ func formatCellsCompact(cells []int) string {
 		slices.Sort(cells)
 	}
 
-	var result strings.Builder
+	var builder strings.Builder
 	// Pre-allocate assuming an average of 5 bytes per group.
-	result.Grow(len(cells) * 5)
+	builder.Grow(len(cells) * 5)
 
 	var buf1, buf2 [81]int
 	currentCells := cells
 	use1 := true
 
 	for len(currentCells) > 0 {
-		if result.Len() > 0 {
-			result.WriteByte(',')
+		if builder.Len() > 0 {
+			builder.WriteByte(',')
 		}
 
 		// Short-circuit path: If there's only one cell, just format it directly.
 		if len(currentCells) == 1 {
-			result.WriteString(puzzle.FormatCell(currentCells[0]))
+			builder.WriteString(puzzle.FormatCell(currentCells[0]))
 			break
 		}
 
@@ -340,15 +341,15 @@ func formatCellsCompact(cells []int) string {
 			}
 		}
 
-		result.WriteByte('r')
-		result.Write(rows[:numRows])
-		result.WriteByte('c')
-		result.Write(cols[:numCols])
+		builder.WriteByte('r')
+		builder.Write(rows[:numRows])
+		builder.WriteByte('c')
+		builder.Write(cols[:numCols])
 
 		currentCells = nextCells
 	}
 
-	return result.String()
+	return builder.String()
 }
 
 func formatRectCompact(cells []int) string {

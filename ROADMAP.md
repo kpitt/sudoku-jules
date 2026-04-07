@@ -91,3 +91,9 @@ classified by human difficulty.
 - [ ] **Bitwise Techniques**: Rewrite all solver techniques to use bitwise logic (POPCNT, AND, OR, XOR).
 - [x] **Branchless Iteration**: Update loops to use fixed-size array iteration.
 - [ ] **Stack Allocation**: Ensure the main `Solver` and `Board` structs fit entirely on the stack.
+
+## 7. Testing & Quality
+
+*Ensuring reliability and correctness of the codebase.*
+
+- [x] **FromString Error Paths**: Added comprehensive error path testing for `FromString` puzzle reader.
