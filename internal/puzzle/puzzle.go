@@ -52,6 +52,16 @@ func (p *Puzzle) IsDigitSolved(digit int) bool {
 	return p.unsolvedCounts[digit] == 0
 }
 
+func (p *Puzzle) NumGivens() int {
+	count := 0
+	for i := range 81 {
+		if p.Cells[i].IsGiven {
+			count++
+		}
+	}
+	return count
+}
+
 func (p *Puzzle) GivenValue(idx int, val int) {
 	p.Cell(idx).GivenValue(val)
 	p.updatePuzzleState(idx, val)

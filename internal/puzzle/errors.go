@@ -1,11 +1,17 @@
 package puzzle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/fatih/color"
+)
+
+var (
+	ErrNoSolution        = errors.New("puzzle has no solution")
+	ErrMultipleSolutions = errors.New("puzzle has multiple solutions")
 )
 
 func errPuzzleFormat(format string, a ...any) error {

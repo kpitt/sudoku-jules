@@ -22,6 +22,13 @@ func main() {
 		fatalError(err.Error())
 	}
 
+	if p.NumGivens() < 17 {
+		valid, err := solver.CheckPuzzle(p)
+		if !valid {
+			fatalError(err.Error())
+		}
+	}
+
 	color.HiBlue("Original Puzzle:")
 	p.Print()
 	fmt.Println()
