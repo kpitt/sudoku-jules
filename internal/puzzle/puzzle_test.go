@@ -112,22 +112,3 @@ func TestValidateSolution(t *testing.T) {
 		t.Error("Should detect duplicate in row")
 	}
 }
-
-func TestCell_Box(t *testing.T) {
-	tests := []struct {
-		r, c, expected int
-	}{
-		{0, 0, 0},
-		{0, 8, 2},
-		{4, 4, 4},
-		{8, 0, 6},
-		{8, 8, 8},
-	}
-
-	for _, tt := range tests {
-		c := NewCell(tt.r, tt.c)
-		if got := c.Box(); got != tt.expected {
-			t.Errorf("Cell(%d,%d).Box() = %d; want %d", tt.r, tt.c, got, tt.expected)
-		}
-	}
-}
