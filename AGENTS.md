@@ -23,6 +23,8 @@ files before generating code or architectural suggestions.
 - **Environment Setup:** Always run `go mod download` and `go mod tidy` before
   executing tests or benchmarks to ensure dependencies are hydrated.
 - **Testing & Benchmarking:**
+    - All new functionality must have unit test coverage.
+    - Strictly follow a tests-first TDD approach. You must write a failing test case before starting the implementation of the feature. The feature is not complete until all tests are passing.
     - Use the standard Go table-driven pattern for unit tests.
     - Execute unit tests using `make test` as defined in the Makefile.
     - Execute benchmarks using `make bench` as defined in the Makefile.
