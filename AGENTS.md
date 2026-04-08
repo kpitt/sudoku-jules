@@ -46,3 +46,7 @@ files before generating code or architectural suggestions.
       in the current code, consider it resolved and do not attempt to re-implement
       old suggestions.
     - Always perform a "fresh look" at the codebase after any branch merge.
+
+## Documentation Maintenance
+
+- **Responsibility:** For every change, you must review `docs/ARCHITECTURE.md` and `CODING_STANDARDS.md` to ensure they are still accurate. If your changes affect the project structure or common workflows, update these files accordingly.

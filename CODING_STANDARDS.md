@@ -74,18 +74,24 @@ This will create the `bin/sudoku` binary.
 
 ### Running
 
-The solver reads from `stdin`. You can pipe a puzzle file to it:
+The solver reads from `stdin`. You can pipe a puzzle file to it using the `solve` subcommand:
 
 ```bash
 # Run with a sample puzzle
-cat test/expert1.txt | bin/sudoku
+cat test/expert1.txt | bin/sudoku solve
 ```
 
 Or run interactively:
 
 ```bash
-bin/sudoku
+bin/sudoku solve
 # Paste your puzzle grid here...
+```
+
+You can also use the `check` subcommand to verify unique solvability:
+
+```bash
+cat test/beginner1.txt | bin/sudoku check
 ```
 
 ### Testing

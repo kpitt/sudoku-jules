@@ -6,7 +6,8 @@ This project is a Sudoku solver that employs a hybrid approach: it prioritizes d
 
 ## Directory Structure
 
-- **`cmd/sudoku/`**: Application entry point.
+- **`cmd/sudoku/`**: Application entry point (`main.go`).
+- **`cmd/sudoku/cmd/`**: CLI command implementations (using `spf13/cobra`).
 - **`internal/puzzle/`**: The data model representing the grid and its state.
 - **`internal/solver/`**: The core logic engine containing deductive strategies
   and the backtracking solver.
@@ -46,7 +47,8 @@ This project is a Sudoku solver that employs a hybrid approach: it prioritizes d
 ## Architectural Interaction
 
 1. **Initialization**:
-    - `main.go` reads input and initializes a `solver.Solver`.
+    - `main.go` executes the root command which dispatches to subcommands like `solve`.
+    - `cmd/sudoku/cmd/solve.go` reads input and initializes a `solver.Solver`.
     - The solver creates 27 `House` objects (9 rows, 9 columns, 9 boxes) to index the initial state.
 
 2. **Deductive Solve Loop**:
@@ -66,5 +68,6 @@ This project is a Sudoku solver that employs a hybrid approach: it prioritizes d
 ## Key Entry Points
 
 - **`cmd/sudoku/main.go`**: `main()` - Executable entry point.
+- **`cmd/sudoku/cmd/`**: Subcommand implementations (`root.go`, `solve.go`, `check.go`).
 - **`internal/puzzle/puzzle.go`**: `FromFile(io.Reader)` - Loading logic.
 - **`internal/solver/solver.go`**: `NewSolver(p, opts).Solve()` - Primary solving routine.
