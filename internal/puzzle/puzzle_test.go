@@ -112,3 +112,29 @@ func TestValidateSolution(t *testing.T) {
 		t.Error("Should detect duplicate in row")
 	}
 }
+
+func TestNumGivens(t *testing.T) {
+	p := NewPuzzle()
+
+	// Scenario 1: New puzzle should have 0 givens
+	if count := p.NumGivens(); count != 0 {
+		t.Errorf("expected 0 givens, got %d", count)
+	}
+
+	// Scenario 2: Adding values with GivenValue should increment NumGivens
+	p.GivenValue(0, 1)
+	p.GivenValue(10, 5)
+	p.GivenValue(80, 9)
+
+	if count := p.NumGivens(); count != 3 {
+		t.Errorf("expected 3 givens, got %d", count)
+	}
+
+	// Scenario 3: Adding values with PlaceValue should NOT increment NumGivens
+	p.PlaceValue(5, 2)
+	p.PlaceValue(20, 4)
+
+	if count := p.NumGivens(); count != 3 {
+		t.Errorf("expected 3 givens after PlaceValue, got %d", count)
+	}
+}
