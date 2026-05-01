@@ -138,3 +138,31 @@ func TestNumGivens(t *testing.T) {
 		t.Errorf("expected 3 givens after PlaceValue, got %d", count)
 	}
 }
+
+func TestIsDigitSolved(t *testing.T) {
+	p := NewPuzzle()
+	if p.IsDigitSolved(1) {
+		t.Error("IsDigitSolved(1) should be false initially")
+	}
+
+	// Place 8 ones in non-conflicting diagonal cells
+	indices := []int{0, 10, 20, 30, 40, 50, 60, 70}
+	for _, idx := range indices {
+		p.PlaceValue(idx, 1)
+	}
+
+	if p.IsDigitSolved(1) {
+		t.Error("IsDigitSolved(1) should be false after placing 8 instances")
+	}
+
+	// Place the 9th instance
+	p.PlaceValue(80, 1)
+
+	if !p.IsDigitSolved(1) {
+		t.Error("IsDigitSolved(1) should be true after placing 9 instances")
+	}
+
+	if p.IsDigitSolved(2) {
+		t.Error("IsDigitSolved(2) should be false, as no 2s have been placed")
+	}
+}
